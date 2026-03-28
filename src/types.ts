@@ -2,6 +2,8 @@ import type { HttpContext } from "./context.js";
 
 export type Constructor<T = any> = new (...args: any[]) => T;
 
+export type AbstractConstructor<T = any> = abstract new (...args: any[]) => T;
+
 export type RouteHandler = (ctx: HttpContext) => unknown | Promise<unknown>;
 
 export type MiddlewareHandler = (
@@ -21,3 +23,9 @@ export interface Guard {
 export interface ExceptionFilter {
   catch(error: Error, ctx: HttpContext): void | Promise<void>;
 }
+
+export type Token<T = any> =
+  | AbstractConstructor<T>
+  | Constructor<T>
+  | symbol
+  | string;

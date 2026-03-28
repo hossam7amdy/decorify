@@ -1,15 +1,18 @@
-import type { Constructor } from "../types.js";
+import type { Constructor, Token } from "../types.js";
 
 class Container {
-  private instances = new Map<Constructor, any>();
-  private registry = new Map<Constructor, Constructor>();
+  private instances = new Map<Token, any>();
+  private registry = new Map<Token, Constructor>();
   private injectionContext = false;
 
-  register<T>(token: Constructor<T>, target?: Constructor<T>): void {
-    this.registry.set(token, target ?? token);
+  register<T>(token: Token<T>, target?: Constructor<T>): void {
+    if (!target && typeof token !== "function") {
+      throw new Error("[DI] Invalid token");
+    }
+    this.registry.set(token, target ?? (token as Constructor<T>));
   }
 
-  resolve<T>(token: Constructor<T>): T {
+  resolve<T>(token: Token<T>): T {
     if (this.instances.has(token)) {
       return this.instances.get(token);
     }
@@ -17,7 +20,7 @@ class Container {
     const Target = this.registry.get(token);
     if (!Target) {
       throw new Error(
-        `[DI] No provider registered for ${token.name}. Did you forget @Injectable()?`,
+        `[DI] No provider registered for ${typeof token === "function" ? token.name : String(token)}. Did you forget @Injectable()?`,
       );
     }
 
