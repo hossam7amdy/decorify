@@ -1,7 +1,6 @@
 import type { HttpContext } from "../../../dist/context.js";
 import { Controller, Get, Post } from "../../../dist/http/index.js";
 import { Injectable, inject } from "../../../dist/di/index.js";
-import { NotFoundException } from "../../../dist/errors/index.js";
 import { UserService } from "./user.service.js";
 
 @Injectable()
@@ -18,12 +17,7 @@ export class UserController {
   @Get("/:id")
   async getUserById(ctx: HttpContext) {
     const id = parseInt(ctx.params.id!, 10);
-    const user = this.userService.findById(id);
-
-    if (!user) {
-      throw new NotFoundException("User not found");
-    }
-    return user;
+    return this.userService.findById(id);
   }
 
   @Post("/")

@@ -1,4 +1,5 @@
 import { inject, Injectable } from "../../../dist/di/index.js";
+import { NotFoundException } from "../../../dist/index.js";
 import type { User } from "./user.interface.js";
 import { UserRepository } from "./user.repository.js";
 
@@ -11,7 +12,11 @@ export class UserService {
   }
 
   findById(id: number): User | undefined {
-    return this.usersRepo.findById(id);
+    const user = this.usersRepo.findById(id);
+    if (!user) {
+      throw new NotFoundException("User not found");
+    }
+    return user;
   }
 
   create(data: Partial<User>): User {
