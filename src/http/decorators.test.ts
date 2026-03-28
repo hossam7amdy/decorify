@@ -1,5 +1,3 @@
-import "../polyfill-metadata.js";
-
 import { describe, it, expect } from "vitest";
 import { Controller, Get, Post } from "./decorators.js";
 

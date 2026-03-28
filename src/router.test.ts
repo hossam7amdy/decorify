@@ -1,5 +1,3 @@
-import "./polyfill-metadata.js";
-
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { registerControllers } from "./router.js";
 import { Controller, Get } from "./http/decorators.js";
