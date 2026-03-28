@@ -30,5 +30,6 @@
     "composite": false,
     "declarationMap": false
   },
-  "include": ["src"]
+  "include": ["src"],
+  "exclude": ["**/*.test.ts"]
 }
