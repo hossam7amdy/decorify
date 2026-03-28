@@ -1,4 +1,4 @@
-import "../polyfill-metadata.js";
+import "./polyfill-metadata.js";
 
 // Core
 export { Application } from "./application.js";
