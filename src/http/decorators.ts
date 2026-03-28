@@ -1,5 +1,3 @@
-(Symbol as any).metadata ??= Object.create({});
-
 import type { RouteMetadata } from "./metadata.js";
 
 function createRouteDecorator(httpMethod: string) {

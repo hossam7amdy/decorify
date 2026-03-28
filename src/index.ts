@@ -1,3 +1,5 @@
+import "../polyfill-metadata.js";
+
 // Core
 export { Application } from "./application.js";
 export type { HttpContext } from "./context.js";
