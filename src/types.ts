@@ -29,3 +29,14 @@ export type Token<T = any> =
   | Constructor<T>
   | symbol
   | string;
+
+export type Lifetime = "singleton" | "transient" | "scoped";
+
+export type Provider<T = any> =
+  | { kind: "class"; target: Constructor<T>; lifetime: Lifetime }
+  | { kind: "factory"; factory: () => T; lifetime: Lifetime }
+  | { kind: "value"; value: T };
+
+export interface AsyncInitializable {
+  init(): Promise<void>;
+}

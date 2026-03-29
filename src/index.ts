@@ -8,6 +8,10 @@ export type { HttpAdapter } from "./adapters/http-adapter.js";
 // Types
 export type {
   Constructor,
+  Token,
+  Lifetime,
+  Provider,
+  AsyncInitializable,
   RouteHandler,
   MiddlewareHandler,
   ErrorHandler,

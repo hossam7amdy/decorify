@@ -1,15 +1,15 @@
-import type { Constructor } from "../types.js";
+import type { Constructor, Lifetime } from "../types.js";
 import { container } from "./container.js";
 
 /**
  * Marks a class as injectable and registers it in the DI container.
  */
-export function Injectable() {
+export function Injectable(opts?: { lifetime?: Lifetime }) {
   return function <T extends Constructor>(
     value: T,
     _context: ClassDecoratorContext<T>,
   ) {
-    container.register(value);
+    container.register(value, undefined, { lifetime: opts?.lifetime });
   };
 }
 
