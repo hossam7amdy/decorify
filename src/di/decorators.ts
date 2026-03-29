@@ -9,7 +9,7 @@ export function Injectable(opts?: { lifetime?: Lifetime }) {
     value: T,
     _context: ClassDecoratorContext<T>,
   ) {
-    container.register(value, undefined, { lifetime: opts?.lifetime });
+    container.register(value, { lifetime: opts?.lifetime });
   };
 }
 
