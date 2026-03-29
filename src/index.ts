@@ -20,7 +20,13 @@ export type {
 } from "./types.js";
 
 // DI
-export { container, Injectable, inject, Inject } from "./di/index.js";
+export {
+  container,
+  Injectable,
+  inject,
+  Inject,
+  Container,
+} from "./di/index.js";
 
 // HTTP Decorators
 export {
