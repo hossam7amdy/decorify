@@ -1,178 +1,169 @@
 import type {
   AsyncInitializable,
+  ClassProvider,
   Constructor,
-  Lifetime,
+  NormalizedProvider,
   Provider,
+  Scope,
   Token,
 } from "./types.js";
+import { Scope as ScopeValue } from "./types.js";
+import { DI_INJECTABLE, DI_SCOPE } from "./metadata.js";
+import { injectionContext } from "./context.js";
+import type { Resolver } from "./context.js";
+import { tokenName } from "./utils.js";
 
 function hasAsyncInit(obj: unknown): obj is AsyncInitializable {
   return typeof (obj as any)?.init === "function";
 }
 
-const LIFETIME_RANK: Record<Lifetime, number> = {
+const SCOPE_RANK: Record<Scope, number> = {
   singleton: 0,
   scoped: 1,
   transient: 2,
 };
 
-export default class Container {
+interface ResolvedEntry<T = any> {
+  provider: NormalizedProvider<T>;
+  scope: Scope;
+}
+
+export class Container implements Resolver {
+  private registry = new Map<Token, ResolvedEntry>();
   private instances = new Map<Token, any>();
-  private registry = new Map<Token, Provider>();
-  private injectionContext = false;
-  private resolutionStack: Token[] = [];
-  private static lifetimeStack: { token: Token; lifetime: Lifetime }[] = [];
   private initializedTokens = new Set<Token>();
   private parent: Container | null = null;
   private isScoped = false;
 
-  private tokenName(token: Token): string {
-    return typeof token === "function" ? token.name : String(token);
-  }
+  register<T>(provider: Provider<T>, opts?: { override?: boolean }): void {
+    const normalized = this.normalizeProvider(provider);
+    const token = normalized.provide;
 
-  private guardDuplicate(token: Token, override?: boolean): void {
-    if (this.registry.has(token) && !override) {
+    if (this.registry.has(token) && !opts?.override) {
       throw new Error(
-        `[DI] Token "${this.tokenName(token)}" is already registered. Pass { override: true } to replace it.`,
+        `[DI] Token "${tokenName(token)}" is already registered. Pass { override: true } to replace it.`,
       );
     }
+
+    const scope =
+      normalized.scope ?? this.inferScope(normalized) ?? ScopeValue.Singleton;
+    this.registry.set(token, { provider: normalized, scope });
   }
 
-  private instantiate<T>(provider: Provider<T>): T {
-    switch (provider.kind) {
-      case "class":
-        return new provider.target() as T;
-      case "factory":
-        return provider.factory();
-      case "value":
-        return provider.value;
-    }
-  }
-
-  private getLifetime(provider: Provider): Lifetime {
-    return provider.kind === "value" ? "singleton" : provider.lifetime;
-  }
-
-  register<T>(
-    targetOrToken: Token<T>,
-    target?: Constructor<T> | { override?: boolean; lifetime?: Lifetime },
-    opts?: { override?: boolean; lifetime?: Lifetime },
-  ): void {
-    if (typeof target === "object") {
-      opts = target;
-      target = targetOrToken as Constructor<T>;
-    }
-    if (!target && typeof targetOrToken !== "function") {
-      throw new Error("[DI] Invalid token");
-    }
-    this.guardDuplicate(targetOrToken, opts?.override);
-    this.registry.set(targetOrToken, {
-      kind: "class",
-      target: target ?? (targetOrToken as Constructor<T>),
-      lifetime: opts?.lifetime ?? "singleton",
-    });
-  }
-
-  registerValue<T>(
-    token: Token<T>,
-    value: T,
-    opts?: { override?: boolean },
-  ): void {
-    this.guardDuplicate(token, opts?.override);
-    this.registry.set(token, { kind: "value", value });
-    this.instances.set(token, value);
-  }
-
-  registerFactory<T>(
-    token: Token<T>,
-    factory: () => T,
-    opts?: { override?: boolean; lifetime?: Lifetime },
-  ): void {
-    this.guardDuplicate(token, opts?.override);
-    this.registry.set(token, {
-      kind: "factory",
-      factory,
-      lifetime: opts?.lifetime ?? "singleton",
-    });
+  registerMany(providers: Provider[]): void {
+    for (const p of providers) this.register(p);
   }
 
   resolve<T>(token: Token<T>): T {
+    const existingCtx = injectionContext.getStore();
+    if (existingCtx) {
+      return this.resolveSync(token);
+    }
+    return injectionContext.run(
+      { container: this, resolutionStack: [], lifetimeStack: [] },
+      () => this.resolveSync(token),
+    );
+  }
+
+  /** @internal — used by inject() and internally for recursive resolution */
+  resolveSync<T>(token: Token<T>): T {
     if (this.instances.has(token)) {
       return this.instances.get(token);
     }
 
-    const provider = this.registry.get(token);
-    if (!provider) {
+    let entry = this.lookup(token);
+
+    if (!entry) {
+      this.tryAutoRegister(token);
+      entry = this.registry.get(token);
+    }
+
+    if (!entry) {
       throw new Error(
-        `[DI] No provider registered for ${this.tokenName(token)}. Did you forget @Injectable()?`,
+        `[DI] No provider registered for ${tokenName(token)}. Did you forget @Injectable() or container.register()?`,
       );
     }
 
-    const lifetime = this.getLifetime(provider);
+    const scope = entry.scope;
 
-    // Singletons in child containers delegate to the parent
-    if (lifetime === "singleton" && this.parent) {
-      return this.parent.resolve(token);
+    if (scope === ScopeValue.Singleton && this.parent) {
+      return this.parent.resolveSync(token);
     }
 
-    if (lifetime === "scoped" && !this.isScoped) {
+    if (scope === ScopeValue.Scoped && !this.isScoped) {
       throw new Error(
-        `[DI] Cannot resolve scoped token "${this.tokenName(token)}" from root container. Use createScope().`,
+        `[DI] Cannot resolve scoped token "${tokenName(token)}" from root container. Use createScope().`,
       );
     }
 
-    if (this.resolutionStack.includes(token)) {
+    const ctx = injectionContext.getStore()!;
+
+    if (ctx.resolutionStack.includes(token)) {
       const cycle = [
-        ...this.resolutionStack.slice(this.resolutionStack.indexOf(token)),
+        ...ctx.resolutionStack.slice(ctx.resolutionStack.indexOf(token)),
         token,
       ]
-        .map((t) => this.tokenName(t))
+        .map((t) => tokenName(t))
         .join(" → ");
       throw new Error(`[DI] Circular dependency detected: ${cycle}`);
     }
 
-    // Captive dependency check: a longer-lived service must not capture a shorter-lived one
-    const stack = Container.lifetimeStack;
-    if (stack.length > 0) {
-      const parent = stack[stack.length - 1]!;
-      if (LIFETIME_RANK[parent.lifetime] < LIFETIME_RANK[lifetime]) {
+    if ("useExisting" in entry.provider) {
+      ctx.resolutionStack.push(token);
+      try {
+        return this.resolveSync(entry.provider.useExisting);
+      } finally {
+        ctx.resolutionStack.pop();
+      }
+    }
+
+    const ltStack = ctx.lifetimeStack;
+    if (ltStack.length > 0) {
+      const parent = ltStack[ltStack.length - 1]!;
+      if (SCOPE_RANK[parent.scope] < SCOPE_RANK[scope]) {
         throw new Error(
-          `[DI] Captive dependency detected: ${parent.lifetime} "${this.tokenName(parent.token)}" depends on ${lifetime} "${this.tokenName(token)}". A longer-lived service must not capture a shorter-lived one.`,
+          `[DI] Captive dependency detected: ${parent.scope} "${tokenName(parent.token)}" depends on ${scope} "${tokenName(token)}". A longer-lived service must not capture a shorter-lived one.`,
         );
       }
     }
 
-    this.resolutionStack.push(token);
-    stack.push({ token, lifetime });
-    const prev = this.injectionContext;
-    this.injectionContext = true;
+    ctx.resolutionStack.push(token);
+    ltStack.push({ token, scope });
     try {
-      const instance = this.instantiate(provider);
-      if (lifetime !== "transient") {
+      const instance = this.createInstance(entry);
+      if (scope !== ScopeValue.Transient) {
         this.instances.set(token, instance);
       }
       return instance as T;
     } finally {
-      this.resolutionStack.pop();
-      stack.pop();
-      this.injectionContext = prev;
+      ctx.resolutionStack.pop();
+      ltStack.pop();
     }
   }
 
   async resolveAsync<T>(token: Token<T>): Promise<T> {
-    const provider = this.registry.get(token);
-    const lifetime = provider ? this.getLifetime(provider) : "singleton";
+    if (!this.lookup(token)) {
+      this.tryAutoRegister(token);
+    }
+    const entry = this.lookup(token);
 
-    // Delegate singleton to parent in scoped containers
-    if (lifetime === "singleton" && this.parent) {
+    if (entry && entry.scope === ScopeValue.Singleton && this.parent) {
       return this.parent.resolveAsync(token);
     }
 
-    const instance = this.resolve(token);
+    // For factory providers, use async path to support Promise-returning factories
+    let instance: T;
+    if (entry && "useFactory" in entry.provider) {
+      instance = await this.resolveAsyncFactory(token, entry);
+    } else {
+      instance = this.resolve(token);
+    }
+
+    const scope = entry?.scope ?? ScopeValue.Singleton;
 
     if (
       hasAsyncInit(instance) &&
-      (lifetime === "transient" || !this.initializedTokens.has(token))
+      (scope === ScopeValue.Transient || !this.initializedTokens.has(token))
     ) {
       this.initializedTokens.add(token);
       await instance.init();
@@ -181,34 +172,121 @@ export default class Container {
     return instance;
   }
 
+  /** Resolve a factory provider, awaiting the result if it returns a Promise */
+  private async resolveAsyncFactory<T>(
+    token: Token<T>,
+    entry: ResolvedEntry<T>,
+  ): Promise<T> {
+    // Return cached instance
+    if (this.instances.has(token)) {
+      return this.instances.get(token);
+    }
+
+    const ctx = injectionContext.getStore();
+    const run = <R>(fn: () => R): R => {
+      if (ctx) return fn();
+      return injectionContext.run(
+        { container: this, resolutionStack: [], lifetimeStack: [] },
+        fn,
+      );
+    };
+
+    return run(async () => {
+      // Re-check cache after entering context (may have been resolved during await)
+      if (this.instances.has(token)) {
+        return this.instances.get(token);
+      }
+      const instance = await this.createInstanceAsync(entry);
+      if (entry.scope !== ScopeValue.Transient) {
+        this.instances.set(token, instance);
+      }
+      return instance;
+    });
+  }
+
   createScope(): Container {
     const child = new Container();
-    child.registry = this.registry;
     child.parent = this;
     child.isScoped = true;
     return child;
   }
 
+  has(token: Token): boolean {
+    return this.registry.has(token) || (this.parent?.has(token) ?? false);
+  }
+
   validate(tokens: Token[]): void {
-    const missing = tokens.filter((t) => !this.registry.has(t));
+    const missing = tokens.filter((t) => !this.has(t));
     if (missing.length > 0) {
-      const names = missing.map((t) => this.tokenName(t)).join(", ");
+      const names = missing.map((t) => tokenName(t)).join(", ");
       throw new Error(`[DI] Missing registrations: ${names}`);
     }
   }
 
   get isInInjectionContext(): boolean {
-    return this.injectionContext;
+    return injectionContext.getStore() !== undefined;
   }
 
   clear(): void {
     this.instances.clear();
-    if (!this.isScoped) {
-      this.registry.clear();
-    }
-    this.resolutionStack = [];
+    this.registry.clear();
     this.initializedTokens.clear();
   }
-}
 
-export const container = new Container();
+  private lookup(token: Token): ResolvedEntry | undefined {
+    return this.registry.get(token) ?? this.parent?.lookup(token);
+  }
+
+  private normalizeProvider<T>(
+    provider: Provider<T>,
+  ): NormalizedProvider<T> & { provide: Token<T> } {
+    if (typeof provider === "function") {
+      return {
+        provide: provider as Token<T>,
+        useClass: provider,
+      } as ClassProvider<T> & { provide: Token<T> };
+    }
+    return provider as NormalizedProvider<T> & { provide: Token<T> };
+  }
+
+  private inferScope(provider: NormalizedProvider): Scope | undefined {
+    const ctor = "useClass" in provider ? provider.useClass : null;
+    if (ctor && (ctor as any)[Symbol.metadata]?.[DI_SCOPE]) {
+      return (ctor as any)[Symbol.metadata][DI_SCOPE] as Scope;
+    }
+    return undefined;
+  }
+
+  private tryAutoRegister<T>(token: Token<T>): void {
+    if (typeof token !== "function") return;
+    const meta = (token as any)[Symbol.metadata];
+    if (!meta?.[DI_INJECTABLE]) return;
+    this.register(token as Constructor<T>);
+  }
+
+  private createInstance<T>(entry: ResolvedEntry<T>): T {
+    const p = entry.provider;
+    if ("useValue" in p) return p.useValue;
+    if ("useFactory" in p) {
+      const result = p.useFactory();
+      if (result instanceof Promise) {
+        throw new Error(
+          `[DI] Factory for "${tokenName((p as any).provide)}" returned a Promise. ` +
+            `Use container.resolveAsync() for async factories.`,
+        );
+      }
+      return result as T;
+    }
+    const ctor: Constructor<T> = (p as ClassProvider<T>).useClass;
+    return new ctor();
+  }
+
+  /** @internal — async instantiation for factories that return promises */
+  private async createInstanceAsync<T>(entry: ResolvedEntry<T>): Promise<T> {
+    const p = entry.provider;
+    if ("useFactory" in p) {
+      return await p.useFactory();
+    }
+    return this.createInstance(entry);
+  }
+}

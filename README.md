@@ -14,7 +14,7 @@ A framework-agnostic micro-framework for building production-ready HTTP backends
 
 - **Stage 3 ES Decorators** — uses the TC39 standard, not legacy TypeScript experimental decorators
 - **Framework-agnostic** — pluggable `HttpAdapter` interface; ships with an Express 5 adapter
-- **Dependency Injection** — IoC container with lifetime scopes, circular/captive dependency detection, and async init
+- **Dependency Injection** — IoC container with unified provider API, `InjectionToken`, scopes (singleton/transient/scoped), circular & captive dependency detection, async factories, and `AsyncLocalStorage`-based `inject()`
 - **Routing** — `@Controller`, `@Get`, `@Post`, `@Put`, `@Patch`, `@Delete`
 - **Middleware & Guards** — `@UseMiddleware`, `@UseGuard` at class or method level
 - **Exception Filters** — `@UseFilter` and built-in `HttpException` subclasses
@@ -83,7 +83,13 @@ Returning a value from a handler automatically sends it as a JSON response.
 ## Dependency Injection
 
 ```ts
-import { Injectable, inject, Inject } from "@decorify/core";
+import {
+  Injectable,
+  inject,
+  Inject,
+  InjectionToken,
+  Scope,
+} from "@decorify/core";
 
 @Injectable()
 export class UserRepository {
@@ -101,6 +107,21 @@ export class UserController {
   // decorator-based field injection
   @Inject(UserService) private service!: UserService;
 }
+```
+
+### InjectionToken & Provider Types
+
+```ts
+const DB_URL = new InjectionToken<string>("DB_URL");
+
+container.register({ provide: DB_URL, useValue: "postgres://localhost/mydb" });
+container.register({
+  provide: CacheService,
+  useClass: RedisCacheService,
+  scope: Scope.Scoped,
+});
+container.register({ provide: LOGGER, useFactory: () => createLogger() });
+container.register({ provide: AliasToken, useExisting: CacheService });
 ```
 
 ## Middleware & Guards

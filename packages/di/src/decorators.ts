@@ -1,47 +1,54 @@
-import type { Constructor, Lifetime } from "./types.js";
-import { container } from "./container.js";
+import type { Token, Scope } from "./types.js";
+import { DI_INJECTABLE, DI_INJECT_TOKENS, DI_SCOPE } from "./metadata.js";
+import { inject } from "./context.js";
+
+export { inject } from "./context.js";
 
 /**
- * Marks a class as injectable and registers it in the DI container.
+ * Marks a class as injectable. Required for the container to instantiate it.
+ *
+ * @example
+ *
+ * @Injectable()
+ * class UserService { ... }
+ *
+ * @Injectable({ scope: Scope.Transient })
+ * class RequestLogger { ... }
+ *
  */
-export function Injectable(opts?: { lifetime?: Lifetime }) {
-  return function <T extends Constructor>(
-    value: T,
-    _context: ClassDecoratorContext<T>,
-  ) {
-    container.register(value, { lifetime: opts?.lifetime });
+export function Injectable(opts?: { scope?: Scope }) {
+  return function (_target: any, context: ClassDecoratorContext) {
+    (context.metadata[DI_INJECTABLE] as boolean) = true;
+    if (opts?.scope) {
+      (context.metadata[DI_SCOPE] as Scope) = opts.scope;
+    }
   };
 }
 
 /**
- * Functional injection — resolves a dependency from the DI container.
- * Must be called inside an injection context (field initializer or constructor
- * of a class being resolved by the container).
+ * Explicit token injection via parameter-level metadata.
+ * Use as a field decorator (since native decorators don't support param decorators).
  *
- * Usage:
- *   class UserController {
- *     private userService = inject(UserService);
- *   }
+ * @example
+ * class UserService {
+ *   @Inject(DB_URL) private dbUrl!: string;
+ *   @Inject(LoggerService) private logger!: LoggerService;
+ * }
  */
-export function inject<T>(token: Constructor<T>): T {
-  if (!container.isInInjectionContext) {
-    throw new Error(
-      `[DI] inject(${token.name}) must be called from an injection context.`,
-    );
-  }
-  return container.resolve(token);
-}
+export function Inject<T>(token: Token<T>) {
+  return function (_target: undefined, context: ClassFieldDecoratorContext) {
+    // Store the token so the container can resolve it after construction
+    const existing = (context.metadata[DI_INJECT_TOKENS] ?? {}) as Record<
+      string | symbol,
+      Token
+    >;
+    existing[context.name] = token;
+    (context.metadata[DI_INJECT_TOKENS] as Record<string | symbol, Token>) =
+      existing;
 
-/**
- * Field decorator that resolves a dependency from the DI container.
- *
- * Usage:
- *   @Inject(UserService) userService!: UserService;
- */
-export function Inject<T>(token: Constructor<T>) {
-  return function (_value: undefined, _context: ClassFieldDecoratorContext) {
-    return function (this: any): T {
-      return container.resolve(token);
+    // Return an initializer that resolves from the current injection context
+    return function (this: any) {
+      return inject(token);
     };
   };
 }

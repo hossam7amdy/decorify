@@ -1,13 +1,24 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { container } from "./container.js";
-import { Injectable, inject, Inject } from "./decorators.js";
+import { Container } from "./container.js";
+import { Injectable, Inject, inject } from "./decorators.js";
 
 describe("DI Decorators", () => {
+  let container: Container;
+
   beforeEach(() => {
-    container.clear();
+    container = new Container();
   });
 
-  it("@Injectable should register class", () => {
+  it("@Injectable should auto-register class on resolve", () => {
+    @Injectable()
+    class MyService {}
+
+    container.register(MyService);
+    const instance = container.resolve(MyService);
+    expect(instance).toBeInstanceOf(MyService);
+  });
+
+  it("@Injectable should enable auto-registration without explicit register()", () => {
     @Injectable()
     class MyService {}
 
@@ -31,7 +42,7 @@ describe("DI Decorators", () => {
   it("inject() should throw if called outside injection context", () => {
     class Dep {}
     expect(() => inject(Dep)).toThrow(
-      "inject(Dep) must be called from an injection context.",
+      "inject() called outside of an injection context",
     );
   });
 
