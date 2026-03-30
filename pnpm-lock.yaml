@@ -7,10 +7,6 @@ settings:
 importers:
 
   .:
-    dependencies:
-      express:
-        specifier: ^5.0.0
-        version: 5.2.1
     devDependencies:
       '@swc/core':
         specifier: ^1.15.21
@@ -36,6 +32,23 @@ importers:
       vitest:
         specifier: ^4.1.2
         version: 4.1.2(@types/node@25.3.3)(vite@8.0.3(@emnapi/core@1.9.1)(@emnapi/runtime@1.9.1)(@types/node@25.3.3))
+
+  packages/core:
+    dependencies:
+      '@decorify/di':
+        specifier: workspace:*
+        version: link:../di
+
+  packages/di: {}
+
+  packages/express-adapter:
+    dependencies:
+      '@decorify/core':
+        specifier: workspace:*
+        version: link:../core
+      express:
+        specifier: ^5.0.0
+        version: 5.2.1
 
 packages:
 

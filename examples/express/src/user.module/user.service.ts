@@ -1,5 +1,5 @@
-import { inject, Injectable } from "../../../dist/di/index.js";
-import { NotFoundException } from "../../../dist/index.js";
+import { inject, Injectable } from "decorify";
+import { NotFoundException } from "decorify";
 import type { User } from "./user.interface.js";
 import { UserRepository } from "./user.repository.js";
 

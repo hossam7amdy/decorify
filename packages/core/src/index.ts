@@ -5,28 +5,14 @@ export { Application } from "./application.js";
 export type { HttpContext } from "./context.js";
 export type { HttpAdapter } from "./adapters/http-adapter.js";
 
-// Types
+// HTTP types
 export type {
-  Constructor,
-  Token,
-  Lifetime,
-  Provider,
-  AsyncInitializable,
   RouteHandler,
   MiddlewareHandler,
   ErrorHandler,
   Guard,
   ExceptionFilter,
 } from "./types.js";
-
-// DI
-export {
-  container,
-  Injectable,
-  inject,
-  Inject,
-  Container,
-} from "./di/index.js";
 
 // HTTP Decorators
 export {
@@ -55,3 +41,19 @@ export {
 
 // Lifecycle
 export type { OnInit, OnDestroy } from "./lifecycle/index.js";
+export {
+  hasOnInit,
+  hasOnDestroy,
+  LifecycleManager,
+} from "./lifecycle/index.js";
+
+// Re-export everything from @decorify/di so users can import from one place
+export { container, Container, Injectable, inject, Inject } from "@decorify/di";
+export type {
+  Constructor,
+  AbstractConstructor,
+  Token,
+  Lifetime,
+  Provider,
+  AsyncInitializable,
+} from "@decorify/di";

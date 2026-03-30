@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { registerControllers } from "./router.js";
 import { Controller, Get } from "./http/decorators.js";
-import { Injectable } from "./di/decorators.js";
-import { container } from "./di/container.js";
+import { Injectable } from "@decorify/di";
+import { container } from "@decorify/di";
 import { LifecycleManager } from "./lifecycle/manager.js";
 import type { HttpAdapter } from "./adapters/http-adapter.js";
 import type { HttpContext } from "./context.js";

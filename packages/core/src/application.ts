@@ -1,10 +1,6 @@
 import type { HttpAdapter } from "./adapters/http-adapter.js";
-import type {
-  Constructor,
-  MiddlewareHandler,
-  Guard,
-  ExceptionFilter,
-} from "./types.js";
+import type { Constructor } from "@decorify/di";
+import type { MiddlewareHandler, Guard, ExceptionFilter } from "./types.js";
 import { LifecycleManager } from "./lifecycle/manager.js";
 import { registerControllers } from "./router.js";
 

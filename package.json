@@ -1,63 +1,20 @@
 {
   "name": "decorify",
-  "version": "0.0.1",
-  "description": "A framework-agnostic micro-framework for building production-ready HTTP backends with Stage 3 ES decorators.",
+  "private": true,
   "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    },
-    "./adapters/express": {
-      "types": "./dist/adapters/express/index.d.ts",
-      "import": "./dist/adapters/express/index.js"
-    }
-  },
-  "files": [
-    "dist",
-    "README.md",
-    "LICENSE"
-  ],
-  "sideEffects": false,
   "scripts": {
     "preinstall": "npx only-allow pnpm",
-    "build": "tsc --build",
-    "format": "prettier --check .",
-    "clean": "node --eval \"fs.rmSync('dist', { recursive: true, force: true })\"",
-    "prepublishOnly": "pnpm clean && pnpm build",
+    "build": "pnpm -r --filter='./packages/*' build",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "format": "prettier --check .",
+    "clean": "pnpm -r --filter='./packages/*' clean"
   },
-  "keywords": [
-    "decorators",
-    "es-decorators",
-    "stage-3",
-    "typescript",
-    "http",
-    "backend",
-    "framework",
-    "dependency-injection",
-    "routing",
-    "express",
-    "middleware"
-  ],
-  "author": "Hossam Hamdy <hossamhamdy117@gmail.com>",
-  "license": "ISC",
   "engines": {
     "node": ">=22.0.0"
   },
   "packageManager": "pnpm@10.26.2",
-  "peerDependencies": {
-    "express": "^5.0.0"
-  },
-  "peerDependenciesMeta": {
-    "express": {
-      "optional": true
-    }
-  },
   "devDependencies": {
     "@swc/core": "^1.15.21",
     "@types/express": "^5.0.6",

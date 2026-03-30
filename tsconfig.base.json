@@ -19,17 +19,11 @@
     "experimentalDecorators": false,
     "emitDecoratorMetadata": false,
 
-    /* If transpiling with TypeScript: */
+    /* Module */
     "module": "NodeNext",
-    "outDir": "dist",
     "sourceMap": true,
     "declaration": true,
-    "lib": ["esnext", "esnext.decorators"],
-
-    /* If building for a library in a monorepo: */
-    "composite": false,
-    "declarationMap": false
-  },
-  "include": ["src"],
-  "exclude": ["**/*.test.ts"]
+    "declarationMap": false,
+    "lib": ["esnext", "esnext.decorators"]
+  }
 }

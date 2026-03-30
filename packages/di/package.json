@@ -1,0 +1,43 @@
+{
+  "name": "@decorify/di",
+  "version": "0.0.1",
+  "description": "Standalone dependency injection container with Stage 3 ES decorators support.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": [
+    "./dist/symbol-metadata-polyfill.js"
+  ],
+  "scripts": {
+    "build": "tsc --build",
+    "clean": "node --eval \"fs.rmSync('dist', { recursive: true, force: true })\"",
+    "prepublishOnly": "pnpm clean && pnpm build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
+  },
+  "keywords": [
+    "dependency-injection",
+    "decorators",
+    "es-decorators",
+    "stage-3",
+    "typescript",
+    "ioc"
+  ],
+  "author": "Hossam Hamdy <hossamhamdy117@gmail.com>",
+  "license": "ISC",
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}

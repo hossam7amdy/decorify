@@ -1,12 +1,12 @@
 import type { Application, Request, Response, NextFunction } from "express";
 import express from "express";
-import type { HttpAdapter } from "../http-adapter.js";
-import type { HttpContext } from "../../context.js";
 import type {
+  HttpAdapter,
+  HttpContext,
   RouteHandler,
   MiddlewareHandler,
   ErrorHandler,
-} from "../../types.js";
+} from "@decorify/core";
 import type { Server } from "node:http";
 
 export class ExpressAdapter implements HttpAdapter {
