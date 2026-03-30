@@ -1,6 +1,6 @@
-import { Application } from "../../dist/index.js";
+import { Application } from "decorify";
+import { ExpressAdapter } from "decorify/adapters/express";
 import { UserController } from "./user.module/user.controller.js";
-import { ExpressAdapter } from "../../dist/adapters/express/index.js";
 
 async function bootstrap() {
   const expressApp = new ExpressAdapter();

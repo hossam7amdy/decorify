@@ -1,4 +1,4 @@
-import { Injectable } from "../../../dist/index.js";
+import { Injectable } from "decorify";
 import type { User } from "./user.interface.js";
 
 @Injectable()
