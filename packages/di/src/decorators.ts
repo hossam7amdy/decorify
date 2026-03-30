@@ -1,4 +1,4 @@
-import type { Constructor, Lifetime } from "../types.js";
+import type { Constructor, Lifetime } from "./types.js";
 import { container } from "./container.js";
 
 /**

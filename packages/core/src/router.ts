@@ -1,16 +1,16 @@
 import type { HttpAdapter } from "./adapters/http-adapter.js";
 import type { HttpContext } from "./context.js";
 import type {
-  Constructor,
   RouteHandler,
   MiddlewareHandler,
   Guard,
   ExceptionFilter,
 } from "./types.js";
 import type { ControllerMetadata } from "./http/metadata.js";
+import type { Constructor } from "@decorify/di";
 import { ForbiddenException } from "./errors/http-exception.js";
 import { DefaultExceptionFilter } from "./errors/exception-filter.js";
-import { container } from "./di/container.js";
+import { container } from "@decorify/di";
 import { LifecycleManager } from "./lifecycle/manager.js";
 
 export interface RouterOptions {

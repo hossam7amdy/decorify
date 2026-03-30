@@ -4,7 +4,7 @@ import type {
   Lifetime,
   Provider,
   Token,
-} from "../types.js";
+} from "./types.js";
 
 function hasAsyncInit(obj: unknown): obj is AsyncInitializable {
   return typeof (obj as any)?.init === "function";

@@ -1,0 +1,46 @@
+{
+  "name": "@decorify/express-adapter",
+  "version": "0.0.1",
+  "description": "Express 5 adapter for @decorify/core.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsc --build",
+    "clean": "node --eval \"fs.rmSync('dist', { recursive: true, force: true })\"",
+    "prepublishOnly": "pnpm clean && pnpm build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
+  },
+  "keywords": [
+    "decorify",
+    "express",
+    "adapter",
+    "decorators",
+    "typescript"
+  ],
+  "author": "Hossam Hamdy <hossamhamdy117@gmail.com>",
+  "license": "ISC",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "dependencies": {
+    "@decorify/core": "workspace:*"
+  },
+  "peerDependencies": {
+    "express": "^5.0.0"
+  }
+}
