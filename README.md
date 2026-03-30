@@ -2,31 +2,46 @@
 
 A framework-agnostic micro-framework for building production-ready HTTP backends using **Stage 3 ES Decorators** (no `experimentalDecorators` required).
 
+## Packages
+
+| Package                                                   | Description                                                            |
+| --------------------------------------------------------- | ---------------------------------------------------------------------- |
+| [`@decorify/di`](./packages/di)                           | Standalone IoC container with `@Injectable`, `inject()`, and `@Inject` |
+| [`@decorify/core`](./packages/core)                       | HTTP framework — routing, middleware, guards, filters, lifecycle hooks |
+| [`@decorify/express-adapter`](./packages/express-adapter) | Express 5 adapter for `@decorify/core`                                 |
+
 ## Features
 
-- **Stage 3 ES Decorators** — uses the TC39 standard, not the legacy TypeScript experimental decorators
-- **Framework-agnostic** — pluggable adapter system; ships with an Express 5 adapter
-- **Dependency Injection** — lightweight IoC container with `@Injectable`, `inject()`, and `@Inject`
+- **Stage 3 ES Decorators** — uses the TC39 standard, not legacy TypeScript experimental decorators
+- **Framework-agnostic** — pluggable `HttpAdapter` interface; ships with an Express 5 adapter
+- **Dependency Injection** — IoC container with lifetime scopes, circular/captive dependency detection, and async init
 - **Routing** — `@Controller`, `@Get`, `@Post`, `@Put`, `@Patch`, `@Delete`
 - **Middleware & Guards** — `@UseMiddleware`, `@UseGuard` at class or method level
 - **Exception Filters** — `@UseFilter` and built-in `HttpException` subclasses
 - **Lifecycle Hooks** — `OnInit` / `OnDestroy` interfaces called on startup and shutdown
 
+## Requirements
+
+- Node.js >= 22
+- pnpm (enforced via `only-allow`)
+
 ## Installation
 
 ```bash
-pnpm add decorify
-# Express adapter (optional peer dependency)
-pnpm add express
+pnpm add @decorify/core
+# Express adapter (requires express as peer dependency)
+pnpm add @decorify/express-adapter express
 ```
+
+> `@decorify/core` re-exports everything from `@decorify/di`, so you only need one import in most cases.
 
 ## Quick Start
 
 ```ts
 // main.ts
-import { Application } from "decorify";
-import { ExpressAdapter } from "decorify/adapters";
-import { UserController } from "./user.module/user.controller.js";
+import { Application } from "@decorify/core";
+import { ExpressAdapter } from "@decorify/express-adapter";
+import { UserController } from "./user.controller.js";
 
 const app = new Application(new ExpressAdapter());
 
@@ -39,11 +54,9 @@ await app.listen(3000, () => {
 
 ## Routing
 
-Use `@Controller` to define a base path and HTTP method decorators on methods:
-
 ```ts
-import { Controller, Get, Post } from "decorify";
-import type { HttpContext } from "decorify";
+import { Controller, Get, Post, Injectable } from "@decorify/core";
+import type { HttpContext } from "@decorify/core";
 
 @Injectable()
 @Controller("/users")
@@ -69,10 +82,8 @@ Returning a value from a handler automatically sends it as a JSON response.
 
 ## Dependency Injection
 
-Register classes with `@Injectable()` and resolve dependencies using `inject()` or the `@Inject` field decorator:
-
 ```ts
-import { Injectable, inject, Inject } from "decorify";
+import { Injectable, inject, Inject } from "@decorify/core";
 
 @Injectable()
 export class UserRepository {
@@ -87,26 +98,26 @@ export class UserService {
 
 @Injectable()
 export class UserController {
-  // decorator-based injection
+  // decorator-based field injection
   @Inject(UserService) private service!: UserService;
 }
 ```
 
 ## Middleware & Guards
 
-Apply middleware or guards globally, at the controller level, or per-route:
-
 ```ts
-import { Application, UseMiddleware, UseGuard } from "decorify";
-import type { HttpContext, Guard } from "decorify";
+import { Application, UseMiddleware, UseGuard } from "@decorify/core";
+import type { HttpContext, MiddlewareHandler, Guard } from "@decorify/core";
 
 const logger: MiddlewareHandler = async (ctx, next) => {
   console.log(`${ctx.method.toUpperCase()} ${ctx.path}`);
   await next();
 };
 
-const authGuard: Guard = async (ctx) => {
-  return ctx.headers.authorization === "Bearer secret";
+const authGuard: Guard = {
+  async canActivate(ctx) {
+    return ctx.headers.authorization === "Bearer secret";
+  },
 };
 
 // Global
@@ -133,8 +144,6 @@ class PostController {
 
 ## Exception Handling
 
-Throw built-in exceptions in handlers or guards; catch them with `@UseFilter`:
-
 ```ts
 import {
   NotFoundException,
@@ -144,9 +153,9 @@ import {
   InternalServerErrorException,
   DefaultExceptionFilter,
   UseFilter,
-} from "decorify";
+} from "@decorify/core";
 
-// Throw anywhere in a handler
+// Throw anywhere in a handler or guard
 throw new NotFoundException("User not found");
 
 // Apply globally
@@ -163,25 +172,20 @@ class UserController {
 ### Custom Exception Filter
 
 ```ts
-import type { ExceptionFilter, HttpContext } from "decorify";
+import type { ExceptionFilter, HttpContext } from "@decorify/core";
 
 class MyFilter implements ExceptionFilter {
-  canCatch(error: unknown): boolean {
-    return error instanceof MyCustomError;
-  }
-
-  catch(error: unknown, ctx: HttpContext): void {
-    ctx.status(422).json({ message: (error as MyCustomError).message });
+  catch(error: Error, ctx: HttpContext): void {
+    ctx.status(422).json({ message: error.message });
   }
 }
 ```
 
 ## Lifecycle Hooks
 
-Implement `OnInit` or `OnDestroy` on any `@Injectable` class:
-
 ```ts
-import type { OnInit, OnDestroy } from "decorify";
+import { Injectable } from "@decorify/core";
+import type { OnInit, OnDestroy } from "@decorify/core";
 
 @Injectable()
 export class DatabaseService implements OnInit, OnDestroy {
@@ -225,13 +229,17 @@ import type {
   HttpContext,
   RouteHandler,
   MiddlewareHandler,
-} from "decorify";
+  ErrorHandler,
+} from "@decorify/core";
 
 export class MyAdapter implements HttpAdapter {
-  addRoute(method: string, path: string, handler: RouteHandler): void {
+  registerRoute(method: string, path: string, handler: RouteHandler): void {
     /* ... */
   }
-  use(middleware: MiddlewareHandler): void {
+  useMiddleware(handler: MiddlewareHandler): void {
+    /* ... */
+  }
+  useErrorHandler(handler: ErrorHandler): void {
     /* ... */
   }
   listen(port: number, callback?: () => void): Promise<void> {
@@ -240,24 +248,34 @@ export class MyAdapter implements HttpAdapter {
   close(): Promise<void> {
     /* ... */
   }
+  getInstance(): unknown {
+    /* ... */
+  }
 }
 ```
 
-## Project Structure
+## Monorepo Structure
 
 ```
-src/
-├── application.ts          # Application bootstrap class
-├── router.ts               # Controller registration & route pipeline builder
-├── context.ts              # HttpContext interface
-├── types.ts                # Shared types (Guard, ExceptionFilter, etc.)
-├── adapters/
-│   ├── http-adapter.ts     # HttpAdapter interface
-│   └── express/            # Express 5 adapter
-├── di/                     # IoC container + @Injectable / inject / @Inject
-├── http/                   # @Controller, @Get/@Post/… , @UseMiddleware, @UseGuard, @UseFilter
-├── errors/                 # HttpException subclasses + DefaultExceptionFilter
-└── lifecycle/              # OnInit / OnDestroy interfaces + LifecycleManager
+decorify/
+├── packages/
+│   ├── di/                     # @decorify/di — standalone IoC container
+│   ├── core/                   # @decorify/core — HTTP framework
+│   └── express-adapter/        # @decorify/express-adapter — Express 5 adapter
+├── tsconfig.base.json
+└── vitest.config.ts
+```
+
+### Workspace Commands
+
+```bash
+pnpm install          # install all dependencies
+pnpm build            # build all packages (di → core → express-adapter)
+pnpm test             # run all test suites
+pnpm test:watch       # watch mode
+pnpm test:coverage    # coverage report
+pnpm format           # check formatting with prettier
+pnpm clean            # remove all dist/ directories
 ```
 
 ## License
