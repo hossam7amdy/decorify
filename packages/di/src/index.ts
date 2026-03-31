@@ -2,7 +2,6 @@ import "./symbol-metadata-polyfill.js";
 
 export type {
   Token,
-  Scope,
   Provider,
   NormalizedProvider,
   Constructor,
@@ -11,9 +10,8 @@ export type {
   ValueProvider,
   FactoryProvider,
   ExistingProvider,
-  AsyncInitializable,
 } from "./types.js";
-export { Scope as ScopeValue, InjectionToken } from "./types.js";
+export { Scope, InjectionToken } from "./types.js";
 
 export { DI_INJECTABLE, DI_INJECT_TOKENS, DI_SCOPE } from "./metadata.js";
 

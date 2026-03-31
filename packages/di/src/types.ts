@@ -9,10 +9,6 @@ export const Scope = {
 
 export type Scope = (typeof Scope)[keyof typeof Scope];
 
-export interface AsyncInitializable {
-  init(): Promise<void>;
-}
-
 /** Unique key used to register/resolve a dependency */
 export type Token<T = any> = Constructor<T> | InjectionToken<T>;
 
@@ -50,7 +46,7 @@ export interface ValueProvider<T = any> extends ProviderConfig<T> {
 
 /** Factory provider — container calls the factory to produce the value */
 export interface FactoryProvider<T = any> extends ProviderConfig<T> {
-  useFactory: () => T | Promise<T>;
+  useFactory: () => T;
 }
 
 /** Existing provider — alias one token to another */

@@ -55,5 +55,4 @@ export type {
   Token,
   Lifetime,
   Provider,
-  AsyncInitializable,
 } from "@decorify/di";

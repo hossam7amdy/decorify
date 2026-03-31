@@ -1,21 +1,15 @@
 import type {
-  AsyncInitializable,
   ClassProvider,
   Constructor,
   NormalizedProvider,
   Provider,
-  Scope,
   Token,
 } from "./types.js";
-import { Scope as ScopeValue } from "./types.js";
+import { Scope } from "./types.js";
 import { DI_INJECTABLE, DI_SCOPE } from "./metadata.js";
 import { injectionContext } from "./context.js";
 import type { Resolver } from "./context.js";
 import { tokenName } from "./utils.js";
-
-function hasAsyncInit(obj: unknown): obj is AsyncInitializable {
-  return typeof (obj as any)?.init === "function";
-}
 
 const SCOPE_RANK: Record<Scope, number> = {
   singleton: 0,
@@ -31,13 +25,26 @@ interface ResolvedEntry<T = any> {
 export class Container implements Resolver {
   private registry = new Map<Token, ResolvedEntry>();
   private instances = new Map<Token, any>();
-  private initializedTokens = new Set<Token>();
   private parent: Container | null = null;
   private isScoped = false;
 
   register<T>(provider: Provider<T>, opts?: { override?: boolean }): void {
     const normalized = this.normalizeProvider(provider);
     const token = normalized.provide;
+
+    if (typeof provider !== "function") {
+      const hasStrategy =
+        "useClass" in normalized ||
+        "useValue" in normalized ||
+        "useFactory" in normalized ||
+        "useExisting" in normalized;
+      if (!hasStrategy) {
+        throw new Error(
+          `[DI] Provider for "${tokenName(token)}" is missing a strategy. ` +
+            `Specify one of: useClass, useValue, useFactory, or useExisting.`,
+        );
+      }
+    }
 
     if (this.registry.has(token) && !opts?.override) {
       throw new Error(
@@ -46,7 +53,7 @@ export class Container implements Resolver {
     }
 
     const scope =
-      normalized.scope ?? this.inferScope(normalized) ?? ScopeValue.Singleton;
+      normalized.scope ?? this.inferScope(normalized) ?? Scope.Singleton;
     this.registry.set(token, { provider: normalized, scope });
   }
 
@@ -86,11 +93,11 @@ export class Container implements Resolver {
 
     const scope = entry.scope;
 
-    if (scope === ScopeValue.Singleton && this.parent) {
+    if (scope === Scope.Singleton && this.parent) {
       return this.parent.resolveSync(token);
     }
 
-    if (scope === ScopeValue.Scoped && !this.isScoped) {
+    if (scope === Scope.Scoped && !this.isScoped) {
       throw new Error(
         `[DI] Cannot resolve scoped token "${tokenName(token)}" from root container. Use createScope().`,
       );
@@ -131,7 +138,7 @@ export class Container implements Resolver {
     ltStack.push({ token, scope });
     try {
       const instance = this.createInstance(entry);
-      if (scope !== ScopeValue.Transient) {
+      if (scope !== Scope.Transient) {
         this.instances.set(token, instance);
       }
       return instance as T;
@@ -139,69 +146,6 @@ export class Container implements Resolver {
       ctx.resolutionStack.pop();
       ltStack.pop();
     }
-  }
-
-  async resolveAsync<T>(token: Token<T>): Promise<T> {
-    if (!this.lookup(token)) {
-      this.tryAutoRegister(token);
-    }
-    const entry = this.lookup(token);
-
-    if (entry && entry.scope === ScopeValue.Singleton && this.parent) {
-      return this.parent.resolveAsync(token);
-    }
-
-    // For factory providers, use async path to support Promise-returning factories
-    let instance: T;
-    if (entry && "useFactory" in entry.provider) {
-      instance = await this.resolveAsyncFactory(token, entry);
-    } else {
-      instance = this.resolve(token);
-    }
-
-    const scope = entry?.scope ?? ScopeValue.Singleton;
-
-    if (
-      hasAsyncInit(instance) &&
-      (scope === ScopeValue.Transient || !this.initializedTokens.has(token))
-    ) {
-      this.initializedTokens.add(token);
-      await instance.init();
-    }
-
-    return instance;
-  }
-
-  /** Resolve a factory provider, awaiting the result if it returns a Promise */
-  private async resolveAsyncFactory<T>(
-    token: Token<T>,
-    entry: ResolvedEntry<T>,
-  ): Promise<T> {
-    // Return cached instance
-    if (this.instances.has(token)) {
-      return this.instances.get(token);
-    }
-
-    const ctx = injectionContext.getStore();
-    const run = <R>(fn: () => R): R => {
-      if (ctx) return fn();
-      return injectionContext.run(
-        { container: this, resolutionStack: [], lifetimeStack: [] },
-        fn,
-      );
-    };
-
-    return run(async () => {
-      // Re-check cache after entering context (may have been resolved during await)
-      if (this.instances.has(token)) {
-        return this.instances.get(token);
-      }
-      const instance = await this.createInstanceAsync(entry);
-      if (entry.scope !== ScopeValue.Transient) {
-        this.instances.set(token, instance);
-      }
-      return instance;
-    });
   }
 
   createScope(): Container {
@@ -230,7 +174,6 @@ export class Container implements Resolver {
   clear(): void {
     this.instances.clear();
     this.registry.clear();
-    this.initializedTokens.clear();
   }
 
   private lookup(token: Token): ResolvedEntry | undefined {
@@ -272,21 +215,12 @@ export class Container implements Resolver {
       if (result instanceof Promise) {
         throw new Error(
           `[DI] Factory for "${tokenName((p as any).provide)}" returned a Promise. ` +
-            `Use container.resolveAsync() for async factories.`,
+            `Async factories are not supported.`,
         );
       }
       return result as T;
     }
     const ctor: Constructor<T> = (p as ClassProvider<T>).useClass;
     return new ctor();
-  }
-
-  /** @internal — async instantiation for factories that return promises */
-  private async createInstanceAsync<T>(entry: ResolvedEntry<T>): Promise<T> {
-    const p = entry.provider;
-    if ("useFactory" in p) {
-      return await p.useFactory();
-    }
-    return this.createInstance(entry);
   }
 }

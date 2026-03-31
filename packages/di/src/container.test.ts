@@ -101,6 +101,15 @@ describe("DI Container", () => {
 
       expect(container.resolve(ALIAS)).toBe(container.resolve(Original));
     });
+
+    it("should throw for provider missing a strategy", () => {
+      const TOKEN = new InjectionToken("bad");
+      expect(() =>
+        container.register({ provide: TOKEN } as any),
+      ).toThrow(
+        '[DI] Provider for "InjectionToken(bad)" is missing a strategy',
+      );
+    });
   });
 
   describe("registerMany", () => {
@@ -110,6 +119,16 @@ describe("DI Container", () => {
       container.registerMany([A, B]);
       expect(container.resolve(A)).toBeInstanceOf(A);
       expect(container.resolve(B)).toBeInstanceOf(B);
+    });
+
+    it("should leave earlier registrations intact on partial failure", () => {
+      class A {}
+      class B {}
+      container.register(B); // pre-register B to cause duplicate error
+
+      expect(() => container.registerMany([A, B])).toThrow("is already registered");
+      // A was registered before B threw
+      expect(container.has(A)).toBe(true);
     });
   });
 
@@ -333,6 +352,42 @@ describe("DI Container", () => {
       const b = scope.resolve(MyService);
       expect(a).not.toBe(b);
     });
+
+    it("should allow child scope to register scoped overrides", () => {
+      const TOKEN = new InjectionToken<string>("greeting");
+      container.register({
+        provide: TOKEN,
+        useValue: "root",
+        scope: Scope.Scoped,
+      });
+
+      const scope = container.createScope();
+      scope.register(
+        { provide: TOKEN, useValue: "child", scope: Scope.Scoped },
+        { override: true },
+      );
+
+      expect(scope.resolve(TOKEN)).toBe("child");
+    });
+
+    it("should delegate singleton resolution to parent even if child overrides", () => {
+      class Base {
+        name = "base";
+      }
+      class Override {
+        name = "override";
+      }
+      container.register(Base);
+
+      const scope = container.createScope();
+      scope.register(
+        { provide: Base, useClass: Override },
+        { override: true },
+      );
+
+      // Singleton always resolves from root — child override is ignored
+      expect(scope.resolve(Base).name).toBe("base");
+    });
   });
 
   describe("value provider", () => {
@@ -341,6 +396,26 @@ describe("DI Container", () => {
       const config = { port: 3000 };
       container.register({ provide: token, useValue: config });
       expect(container.resolve(token)).toBe(config);
+    });
+
+    it("should support falsy values", () => {
+      const zero = new InjectionToken<number>("zero");
+      const empty = new InjectionToken<string>("empty");
+      const nul = new InjectionToken<null>("null");
+      const undef = new InjectionToken<undefined>("undef");
+      const bool = new InjectionToken<boolean>("false");
+
+      container.register({ provide: zero, useValue: 0 });
+      container.register({ provide: empty, useValue: "" });
+      container.register({ provide: nul, useValue: null });
+      container.register({ provide: undef, useValue: undefined });
+      container.register({ provide: bool, useValue: false });
+
+      expect(container.resolve(zero)).toBe(0);
+      expect(container.resolve(empty)).toBe("");
+      expect(container.resolve(nul)).toBe(null);
+      expect(container.resolve(undef)).toBe(undefined);
+      expect(container.resolve(bool)).toBe(false);
     });
 
     it("should guard against double registration", () => {
@@ -427,6 +502,18 @@ describe("DI Container", () => {
       const instance = container.resolve(token);
       expect(instance.dep).toBeInstanceOf(Dep);
       expect(instance.hadContext).toBe(true);
+    });
+
+    it("should throw if factory returns a Promise", () => {
+      const token = new InjectionToken("asyncBad");
+      container.register({
+        provide: token,
+        useFactory: (() => Promise.resolve("value")) as any,
+      });
+
+      expect(() => container.resolve(token)).toThrow(
+        "returned a Promise",
+      );
     });
   });
 
@@ -651,118 +738,36 @@ describe("DI Container", () => {
     });
   });
 
-  describe("resolveAsync", () => {
-    it("should call init() on instance with init method", async () => {
-      const initFn = vi.fn(async () => {});
-      class MyService {
-        init = initFn;
+  describe("clear", () => {
+    it("should allow re-registration after clear", () => {
+      class Svc {
+        version = 1;
       }
-      container.register(MyService);
+      container.register(Svc);
+      const first = container.resolve(Svc);
 
-      await container.resolveAsync(MyService);
-      expect(initFn).toHaveBeenCalledTimes(1);
-    });
+      container.clear();
 
-    it("should call init() only once for singleton", async () => {
-      const initFn = vi.fn(async () => {});
-      class MyService {
-        init = initFn;
+      class SvcV2 {
+        version = 2;
       }
-      container.register(MyService);
+      container.register({ provide: Svc, useClass: SvcV2 });
+      const second = container.resolve(Svc);
 
-      const a = await container.resolveAsync(MyService);
-      const b = await container.resolveAsync(MyService);
-      expect(initFn).toHaveBeenCalledTimes(1);
-      expect(a).toBe(b);
+      expect(first.version).toBe(1);
+      expect(second.version).toBe(2);
     });
 
-    it("should call init() each time for transient", async () => {
-      const initFn = vi.fn(async () => {});
-      const token = new InjectionToken<{ init: () => Promise<void> }>("svc");
-      container.register({
-        provide: token,
-        useFactory: () => ({ init: initFn }),
-        scope: Scope.Transient,
-      });
+    it("should clear cached instances so new resolve creates fresh ones", () => {
+      class Svc {}
+      container.register(Svc);
+      const before = container.resolve(Svc);
 
-      const a = await container.resolveAsync(token);
-      const b = await container.resolveAsync(token);
-      expect(initFn).toHaveBeenCalledTimes(2);
-      expect(a).not.toBe(b);
-    });
+      container.clear();
+      container.register(Svc);
+      const after = container.resolve(Svc);
 
-    it("should work for instances without init method", async () => {
-      class MyService {
-        value = 42;
-      }
-      container.register(MyService);
-
-      const instance = await container.resolveAsync(MyService);
-      expect(instance).toBeInstanceOf(MyService);
-      expect(instance.value).toBe(42);
-    });
-
-    it("should propagate init() errors", async () => {
-      class MyService {
-        async init() {
-          throw new Error("init failed");
-        }
-      }
-      container.register(MyService);
-
-      await expect(container.resolveAsync(MyService)).rejects.toThrow(
-        "init failed",
-      );
-    });
-
-    it("should support async factory via resolveAsync", async () => {
-      const token = new InjectionToken<{ data: string }>("async");
-      container.register({
-        provide: token,
-        useFactory: async () => ({ data: "loaded" }),
-      });
-
-      const instance = await container.resolveAsync(token);
-      expect(instance).toEqual({ data: "loaded" });
-    });
-
-    it("should cache async factory singleton", async () => {
-      let callCount = 0;
-      const token = new InjectionToken<{ id: number }>("asyncSingleton");
-      container.register({
-        provide: token,
-        useFactory: async () => ({ id: ++callCount }),
-      });
-
-      const a = await container.resolveAsync(token);
-      const b = await container.resolveAsync(token);
-      expect(a).toBe(b);
-      expect(callCount).toBe(1);
-    });
-
-    it("should call async factory each time for transient", async () => {
-      let callCount = 0;
-      const token = new InjectionToken<{ id: number }>("asyncTransient");
-      container.register({
-        provide: token,
-        useFactory: async () => ({ id: ++callCount }),
-        scope: Scope.Transient,
-      });
-
-      const a = await container.resolveAsync(token);
-      const b = await container.resolveAsync(token);
-      expect(a).not.toBe(b);
-      expect(callCount).toBe(2);
-    });
-
-    it("should throw if async factory is used with sync resolve()", () => {
-      const token = new InjectionToken("asyncBad");
-      container.register({
-        provide: token,
-        useFactory: async () => "value",
-      });
-
-      expect(() => container.resolve(token)).toThrow("returned a Promise");
+      expect(before).not.toBe(after);
     });
   });
 });
