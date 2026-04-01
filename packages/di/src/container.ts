@@ -1,4 +1,11 @@
-import type { ClassProvider, Constructor, Provider, Token } from "./types.js";
+import type {
+  ClassProvider,
+  Constructor,
+  FactoryProvider,
+  OptionalFactoryDependency,
+  Provider,
+  Token,
+} from "./types.js";
 import { DI_INJECTABLE, DI_SCOPE } from "./metadata.js";
 import { injectionContext } from "./context.js";
 import type { Resolver } from "./context.js";
@@ -295,7 +302,28 @@ export class Container implements Resolver, Disposable, AsyncDisposable {
     const p = entry.provider;
     if ("useValue" in p) return p.useValue;
     if ("useFactory" in p) {
-      const result = p.useFactory();
+      const deps = (p as FactoryProvider).inject;
+      const args: unknown[] = [];
+      if (deps && deps.length > 0) {
+        for (const dep of deps) {
+          if (
+            typeof dep === "object" &&
+            dep !== null &&
+            "token" in dep &&
+            "optional" in dep
+          ) {
+            const optDep = dep as OptionalFactoryDependency;
+            if (optDep.optional && !this.has(optDep.token)) {
+              args.push(undefined);
+            } else {
+              args.push(this.resolveSync(optDep.token));
+            }
+          } else {
+            args.push(this.resolveSync(dep as Token));
+          }
+        }
+      }
+      const result = p.useFactory(...args);
       if (result instanceof Promise) {
         throw new Error(
           `[DI] Factory for "${tokenName((p as any).provide)}" returned a Promise. ` +
