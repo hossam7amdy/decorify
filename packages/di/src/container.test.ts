@@ -850,16 +850,12 @@ describe("DI Container", () => {
     }
 
     describe("basic lifecycle", () => {
-      it("should throw when calling dispose on root container", () => {
-        expect(() => container.dispose()).toThrow(
-          "Cannot dispose the root container. Only scoped containers support disposal.",
-        );
+      it("should allow disposing the root container", () => {
+        expect(() => container.dispose()).not.toThrow();
       });
 
-      it("should throw when calling disposeAsync on root container", async () => {
-        await expect(container.disposeAsync()).rejects.toThrow(
-          "Cannot dispose the root container. Only scoped containers support disposal.",
-        );
+      it("should allow disposing the root container asynchronously", async () => {
+        await expect(container.disposeAsync()).resolves.toBeUndefined();
       });
 
       it("should be idempotent — calling dispose twice does not throw", () => {
@@ -877,6 +873,145 @@ describe("DI Container", () => {
       it("should dispose a scope with no resolved instances", () => {
         const scope = container.createScope();
         expect(() => scope.dispose()).not.toThrow();
+      });
+    });
+
+    describe("root container disposal", () => {
+      it("should call Symbol.dispose on root singleton instances", () => {
+        const spy = vi.fn();
+        class Svc {
+          [Symbol.dispose]() {
+            spy();
+          }
+        }
+        container.register(Svc);
+        container.resolve(Svc);
+
+        container.dispose();
+        expect(spy).toHaveBeenCalledTimes(1);
+      });
+
+      it("should call Symbol.asyncDispose on root singleton instances", async () => {
+        const spy = vi.fn();
+        class Svc {
+          async [Symbol.asyncDispose]() {
+            spy();
+          }
+        }
+        container.register(Svc);
+        container.resolve(Svc);
+
+        await container.disposeAsync();
+        expect(spy).toHaveBeenCalledTimes(1);
+      });
+
+      it("should dispose root singletons in reverse resolution order", () => {
+        const order: string[] = [];
+
+        class A {
+          [Symbol.dispose]() {
+            order.push("A");
+          }
+        }
+        class B {
+          [Symbol.dispose]() {
+            order.push("B");
+          }
+        }
+        class C {
+          [Symbol.dispose]() {
+            order.push("C");
+          }
+        }
+
+        container.register(A);
+        container.register(B);
+        container.register(C);
+
+        container.resolve(A);
+        container.resolve(B);
+        container.resolve(C);
+
+        container.dispose();
+        expect(order).toEqual(["C", "B", "A"]);
+      });
+
+      it("should chain errors from root singleton disposal with SuppressedError", () => {
+        const err1 = new Error("first");
+        const err2 = new Error("second");
+
+        class A {
+          [Symbol.dispose]() {
+            throw err1;
+          }
+        }
+        class B {
+          [Symbol.dispose]() {
+            throw err2;
+          }
+        }
+
+        container.register(A);
+        container.register(B);
+
+        container.resolve(A);
+        container.resolve(B);
+
+        try {
+          container.dispose();
+          expect.unreachable("should have thrown");
+        } catch (e) {
+          expect(e).toBeInstanceOf(SuppressedError);
+          const se = e as SuppressedError;
+          expect(se.error).toBe(err1);
+          expect(se.suppressed).toBe(err2);
+        }
+      });
+
+      it("should throw on resolve after root container disposal", () => {
+        class Svc {}
+        container.register(Svc);
+        container.dispose();
+
+        expect(() => container.resolve(Svc)).toThrow(
+          "Cannot resolve from a disposed container scope.",
+        );
+      });
+
+      it("should throw on register after root container disposal", () => {
+        container.dispose();
+
+        expect(() => container.register(class X {})).toThrow(
+          "Cannot register on a disposed container scope.",
+        );
+      });
+
+      it("should throw on createScope after root container disposal", () => {
+        container.dispose();
+
+        expect(() => container.createScope()).toThrow(
+          "Cannot create a child scope from a disposed container.",
+        );
+      });
+
+      it("should be idempotent — disposing root twice does not throw", () => {
+        container.dispose();
+        expect(() => container.dispose()).not.toThrow();
+      });
+
+      it("should not affect already-created child scopes", () => {
+        class Svc {}
+        container.register({
+          provide: Svc,
+          useClass: Svc,
+          lifetime: Lifetime.SCOPED,
+        });
+        const scope = container.createScope();
+        scope.resolve(Svc);
+
+        container.dispose();
+
+        expect(() => scope.resolve(Svc)).not.toThrow();
       });
     });
 

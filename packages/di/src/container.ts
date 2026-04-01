@@ -193,13 +193,6 @@ export class Container implements Resolver, Disposable, AsyncDisposable {
   }
 
   dispose(): void {
-    if (this.disposed) return;
-    if (!this.isScoped) {
-      throw new Error(
-        "[DI] Cannot dispose the root container. Only scoped containers support disposal.",
-      );
-    }
-
     this.disposed = true;
     const instances = [...this.instances.values()].reverse();
     this.instances.clear();
@@ -228,13 +221,6 @@ export class Container implements Resolver, Disposable, AsyncDisposable {
   }
 
   async disposeAsync(): Promise<void> {
-    if (this.disposed) return;
-    if (!this.isScoped) {
-      throw new Error(
-        "[DI] Cannot dispose the root container. Only scoped containers support disposal.",
-      );
-    }
-
     this.disposed = true;
     const instances = [...this.instances.values()].reverse();
     this.instances.clear();
