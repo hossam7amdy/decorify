@@ -15,10 +15,9 @@ pnpm add @decorify/di
 - **Stage 3 decorators** — `experimentalDecorators: false`
 - Unified provider API — class, value, factory, and alias providers
 - `InjectionToken` for non-class dependencies (config, interfaces)
-- Three scopes: `singleton`, `transient`, `scoped`
+- Three lifetimes: `singleton`, `transient`, `scoped`
 - Circular dependency detection
 - Captive dependency detection (prevents longer-lived services from capturing shorter-lived ones)
-- Async factories and async initialization via `AsyncInitializable`
 - Scoped containers via `createScope()`
 - `AsyncLocalStorage`-based injection context — `inject()` works in constructors, factories, and nested resolution
 
@@ -29,7 +28,7 @@ pnpm add @decorify/di
 Marks a class as injectable. Classes decorated with `@Injectable()` are auto-registered when first resolved:
 
 ```ts
-import { Injectable, Scope } from "@decorify/di";
+import { Injectable, Lifetime } from "@decorify/di";
 
 @Injectable()
 export class UserRepository {
@@ -38,8 +37,8 @@ export class UserRepository {
   }
 }
 
-// With a custom scope
-@Injectable({ scope: Scope.Transient })
+// With a custom lifetime
+@Injectable({ lifetime: Lifetime.TRANSIENT })
 export class RequestLogger {
   /* ... */
 }
@@ -83,7 +82,7 @@ const service = container.resolve(UserService);
 
 ### `container.register(provider, opts?)`
 
-Register a provider. Accepts a bare constructor, or a structured provider object. Defaults to `singleton` scope.
+Register a provider. Accepts a bare constructor, or a structured provider object. Defaults to `singleton` lifetime.
 
 ```ts
 // Bare class (token = class itself)
@@ -101,23 +100,17 @@ container.register({
   useFactory: () => new Logger({ level: "info" }),
 });
 
-// Async factory (must use resolveAsync)
-container.register({
-  provide: DB_CONNECTION,
-  useFactory: async () => await connectToDatabase(),
-});
-
 // Alias provider
 container.register({ provide: ALIAS_TOKEN, useExisting: UserService });
 
 // Override an existing registration
 container.register(UserService, { override: true });
 
-// With explicit scope
+// With explicit lifetime
 container.register({
   provide: RequestHandler,
   useClass: RequestHandler,
-  scope: Scope.Scoped,
+  lifetime: Lifetime.SCOPED,
 });
 ```
 
@@ -140,15 +133,7 @@ Synchronously resolve a token. Throws if:
 - The token is not registered (and not `@Injectable`)
 - A circular dependency is detected
 - A captive dependency is detected
-- A factory returns a `Promise` (use `resolveAsync` instead)
-
-### `container.resolveAsync(token)`
-
-Like `resolve`, but supports async factories and calls `init()` on instances implementing `AsyncInitializable`:
-
-```ts
-const db = await container.resolveAsync(Database);
-```
+- A factory returns a `Promise`
 
 ### `container.createScope()`
 
@@ -199,39 +184,22 @@ container.register({
 const url = container.resolve(DB_URL); // string
 ```
 
-## Scopes
+## Lifetimes
 
-| Scope       | Description                                         |
+| Lifetime    | Description                                         |
 | ----------- | --------------------------------------------------- |
 | `singleton` | One instance per container (default)                |
 | `transient` | New instance on every `resolve()` call              |
 | `scoped`    | One instance per scope created with `createScope()` |
 
 ```ts
-import { Scope } from "@decorify/di";
+import { Lifetime } from "@decorify/di";
 
 container.register({
   provide: MyService,
   useClass: MyService,
-  scope: Scope.Transient,
+  lifetime: Lifetime.TRANSIENT,
 });
-```
-
-## Async Initialization
-
-Implement the `AsyncInitializable` interface and resolve with `resolveAsync`:
-
-```ts
-import type { AsyncInitializable } from "@decorify/di";
-
-@Injectable()
-class Database implements AsyncInitializable {
-  async init() {
-    await this.connect();
-  }
-}
-
-const db = await container.resolveAsync(Database);
 ```
 
 ## Types
@@ -240,17 +208,15 @@ const db = await container.resolveAsync(Database);
 import type {
   Constructor,
   Token,
-  Scope,
   Provider,
-  NormalizedProvider,
   ClassProvider,
   ValueProvider,
   FactoryProvider,
   ExistingProvider,
-  AsyncInitializable,
+  OptionalFactoryDependency,
 } from "@decorify/di";
 
-import { InjectionToken, Scope as ScopeValue, Container } from "@decorify/di";
+import { InjectionToken, Lifetime, Container } from "@decorify/di";
 ```
 
 ## License

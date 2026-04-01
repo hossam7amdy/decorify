@@ -38,10 +38,14 @@ decorify/
 ├── vitest.config.ts          ← root vitest config (projects mode)
 ├── packages/
 │   ├── di/src/
-│   │   ├── types.ts          ← DI types: Constructor, Token, Lifetime, Provider, AsyncInitializable
+│   │   ├── types.ts          ← DI types: Constructor, Token, Provider, ClassProvider, ValueProvider, FactoryProvider, ExistingProvider
+│   │   ├── lifetime.ts       ← Lifetime enum (SINGLETON, TRANSIENT, SCOPED)
+│   │   ├── injection-token.ts ← InjectionToken class
+│   │   ├── metadata.ts       ← DI metadata keys (DI_INJECTABLE, DI_INJECT_TOKENS, DI_SCOPE)
+│   │   ├── context.ts        ← InjectionContext, injectionContext (AsyncLocalStorage), inject()
 │   │   ├── symbol-metadata-polyfill.ts
-│   │   ├── container.ts      ← Container class + global `container` instance
-│   │   ├── decorators.ts     ← @Injectable, inject(), @Inject
+│   │   ├── container.ts      ← Container class
+│   │   ├── decorators.ts     ← @Injectable, @Inject
 │   │   └── index.ts
 │   ├── core/src/
 │   │   ├── types.ts          ← HTTP types: RouteHandler, MiddlewareHandler, Guard, ExceptionFilter
@@ -67,7 +71,7 @@ Each route builds a pipeline: **guards → middleware chain (Koa-style onion) �
 
 ### Dependency Injection (`packages/di/`)
 
-Singleton IoC container (`container` global instance). `@Injectable()` registers a class. Resolution is lazy — instances are created on first `resolve()` call. Two injection styles: `inject(Token)` (functional) and `@Inject(Token)` (field decorator). The container tracks an `injectionContext` flag.
+`Container` class (instantiate directly; no global instance exported). `@Injectable()` registers a class and supports an optional `{ lifetime }` option. Resolution is lazy — instances are created on first `resolve()` call. Two injection styles: `inject(Token)` (functional, via `context.ts`) and `@Inject(Token)` (field decorator). The container uses `AsyncLocalStorage` (`injectionContext`) to propagate the resolution context. Lifetimes: `Lifetime.SINGLETON` (default), `Lifetime.TRANSIENT`, `Lifetime.SCOPED`. Scoped containers are created with `createScope()`. Async factories are not supported — factories must return synchronously.
 
 ### Adapter Pattern
 

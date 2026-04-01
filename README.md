@@ -14,7 +14,7 @@ A framework-agnostic micro-framework for building production-ready HTTP backends
 
 - **Stage 3 ES Decorators** — uses the TC39 standard, not legacy TypeScript experimental decorators
 - **Framework-agnostic** — pluggable `HttpAdapter` interface; ships with an Express 5 adapter
-- **Dependency Injection** — IoC container with unified provider API, `InjectionToken`, scopes (singleton/transient/scoped), circular & captive dependency detection, async factories, and `AsyncLocalStorage`-based `inject()`
+- **Dependency Injection** — IoC container with unified provider API, `InjectionToken`, lifetimes (singleton/transient/scoped), circular & captive dependency detection, and `AsyncLocalStorage`-based `inject()`
 - **Routing** — `@Controller`, `@Get`, `@Post`, `@Put`, `@Patch`, `@Delete`
 - **Middleware & Guards** — `@UseMiddleware`, `@UseGuard` at class or method level
 - **Exception Filters** — `@UseFilter` and built-in `HttpException` subclasses
@@ -88,7 +88,7 @@ import {
   inject,
   Inject,
   InjectionToken,
-  Scope,
+  Lifetime,
 } from "@decorify/core";
 
 @Injectable()
@@ -118,7 +118,7 @@ container.register({ provide: DB_URL, useValue: "postgres://localhost/mydb" });
 container.register({
   provide: CacheService,
   useClass: RedisCacheService,
-  scope: Scope.Scoped,
+  lifetime: Lifetime.SCOPED,
 });
 container.register({ provide: LOGGER, useFactory: () => createLogger() });
 container.register({ provide: AliasToken, useExisting: CacheService });
