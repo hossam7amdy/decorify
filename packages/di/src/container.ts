@@ -16,13 +16,17 @@ interface ResolvedEntry<T = any> {
   lifetime: Lifetime;
 }
 
-export class Container implements Resolver {
+export class Container implements Resolver, Disposable, AsyncDisposable {
   private registry = new Map<Token, ResolvedEntry>();
   private instances = new Map<Token, any>();
   private parent: Container | null = null;
   private isScoped = false;
+  private disposed = false;
 
   register<T>(provider: Provider<T>, opts?: { override?: boolean }): void {
+    if (this.disposed) {
+      throw new Error("[DI] Cannot register on a disposed container scope.");
+    }
     if (typeof provider === "function") {
       provider = {
         provide: provider,
@@ -71,6 +75,9 @@ export class Container implements Resolver {
 
   /** @internal — used by inject() and internally for recursive resolution */
   resolveSync<T>(token: Token<T>): T {
+    if (this.disposed) {
+      throw new Error("[DI] Cannot resolve from a disposed container scope.");
+    }
     if (this.instances.has(token)) {
       return this.instances.get(token);
     }
@@ -146,6 +153,11 @@ export class Container implements Resolver {
   }
 
   createScope(): Container {
+    if (this.disposed) {
+      throw new Error(
+        "[DI] Cannot create a child scope from a disposed container.",
+      );
+    }
     const child = new Container();
     child.parent = this;
     child.isScoped = true;
@@ -171,6 +183,87 @@ export class Container implements Resolver {
   clear(): void {
     this.instances.clear();
     this.registry.clear();
+  }
+
+  dispose(): void {
+    if (this.disposed) return;
+    if (!this.isScoped) {
+      throw new Error(
+        "[DI] Cannot dispose the root container. Only scoped containers support disposal.",
+      );
+    }
+
+    this.disposed = true;
+    const instances = [...this.instances.values()].reverse();
+    this.instances.clear();
+
+    let error: unknown;
+    let hasError = false;
+
+    for (const instance of instances) {
+      if (instance != null && typeof instance[Symbol.dispose] === "function") {
+        try {
+          instance[Symbol.dispose]();
+        } catch (err) {
+          error = hasError
+            ? new SuppressedError(
+                err,
+                error,
+                "An error was suppressed during disposal.",
+              )
+            : err;
+          hasError = true;
+        }
+      }
+    }
+
+    if (hasError) throw error;
+  }
+
+  async disposeAsync(): Promise<void> {
+    if (this.disposed) return;
+    if (!this.isScoped) {
+      throw new Error(
+        "[DI] Cannot dispose the root container. Only scoped containers support disposal.",
+      );
+    }
+
+    this.disposed = true;
+    const instances = [...this.instances.values()].reverse();
+    this.instances.clear();
+
+    let error: unknown;
+    let hasError = false;
+
+    for (const instance of instances) {
+      if (instance == null) continue;
+      try {
+        if (typeof instance[Symbol.asyncDispose] === "function") {
+          await instance[Symbol.asyncDispose]();
+        } else if (typeof instance[Symbol.dispose] === "function") {
+          instance[Symbol.dispose]();
+        }
+      } catch (err) {
+        error = hasError
+          ? new SuppressedError(
+              err,
+              error,
+              "An error was suppressed during disposal.",
+            )
+          : err;
+        hasError = true;
+      }
+    }
+
+    if (hasError) throw error;
+  }
+
+  [Symbol.dispose](): void {
+    this.dispose();
+  }
+
+  [Symbol.asyncDispose](): Promise<void> {
+    return this.disposeAsync();
   }
 
   private lookup(token: Token): ResolvedEntry | undefined {
