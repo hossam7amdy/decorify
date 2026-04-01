@@ -1,81 +1,136 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { container } from "./container.js";
+import { Container } from "./container.js";
+import { InjectionToken } from "./injection-token.js";
+import { Lifetime } from "./lifetime.js";
+import { inject } from "./context.js";
 
 describe("DI Container", () => {
+  let container: Container;
+
   beforeEach(() => {
-    container.clear();
+    container = new Container();
   });
 
-  it("should register and resolve a token", () => {
-    class MyService {}
-    container.register(MyService);
-    const instance = container.resolve(MyService);
-    expect(instance).toBeInstanceOf(MyService);
-  });
+  describe("Basic registration & resolution", () => {
+    it("should register and resolve a class", () => {
+      class MyService {}
+      container.register(MyService);
+      const instance = container.resolve(MyService);
+      expect(instance).toBeInstanceOf(MyService);
+    });
 
-  it("should resolve as singleton", () => {
-    class MyService {}
-    container.register(MyService);
-    const instance1 = container.resolve(MyService);
-    const instance2 = container.resolve(MyService);
-    expect(instance1).toBe(instance2);
-  });
+    it("should resolve as singleton by default", () => {
+      class MyService {}
+      container.register(MyService);
+      expect(container.resolve(MyService)).toBe(container.resolve(MyService));
+    });
 
-  it("should throw error if provider is not registered", () => {
-    class UnregisteredService {}
-    expect(() => container.resolve(UnregisteredService)).toThrow(
-      "[DI] No provider registered for UnregisteredService",
-    );
-  });
+    it("should throw if provider is not registered", () => {
+      class Unregistered {}
+      expect(() => container.resolve(Unregistered)).toThrow(
+        "[DI] No provider registered for Unregistered",
+      );
+    });
 
-  it("should support custom target for tokens (abstract class)", () => {
-    abstract class MyBase {}
-    class MyServiceImpl extends MyBase {}
+    it("should support custom target via ClassProvider", () => {
+      class MyBase {}
+      class MyServiceImpl extends MyBase {}
 
-    container.register(MyBase, MyServiceImpl);
-    const instance = container.resolve(MyBase);
+      container.register({ provide: MyBase, useClass: MyServiceImpl });
+      const instance = container.resolve(MyBase);
 
-    expect(instance).toBeInstanceOf(MyServiceImpl);
-  });
+      expect(instance).toBeInstanceOf(MyServiceImpl);
+    });
 
-  it("should support custom target for tokens (symbol)", () => {
-    const token = Symbol("MyToken");
-    class MyServiceImpl {}
+    it("should support InjectionToken for non-class tokens", () => {
+      const TOKEN = new InjectionToken<string>("greeting");
+      container.register({ provide: TOKEN, useValue: "hello" });
+      expect(container.resolve(TOKEN)).toBe("hello");
+    });
 
-    container.register(token, MyServiceImpl);
-    const instance = container.resolve(token);
+    it("should track injection context", () => {
+      expect(container.isInInjectionContext).toBe(false);
 
-    expect(instance).toBeInstanceOf(MyServiceImpl);
-  });
-
-  it("should support custom target for tokens (string)", () => {
-    const token = "MyToken";
-    class MyServiceImpl {}
-
-    container.register(token, MyServiceImpl);
-    const instance = container.resolve(token);
-
-    expect(instance).toBeInstanceOf(MyServiceImpl);
-  });
-
-  it("should throw if the token is not a function", () => {
-    const token = "MyToken";
-    expect(() => container.register(token)).toThrow("[DI] Invalid token");
-  });
-
-  it("should track injection context", () => {
-    expect(container.isInInjectionContext).toBe(false);
-
-    class MyService {
-      constructor() {
-        expect(container.isInInjectionContext).toBe(true);
+      class MyService {
+        constructor() {
+          expect(container.isInInjectionContext).toBe(true);
+        }
       }
-    }
 
-    container.register(MyService);
-    container.resolve(MyService);
+      container.register(MyService);
+      container.resolve(MyService);
 
-    expect(container.isInInjectionContext).toBe(false);
+      expect(container.isInInjectionContext).toBe(false);
+    });
+  });
+
+  describe("register", () => {
+    it("should accept a bare constructor", () => {
+      class Svc {}
+      container.register(Svc);
+      expect(container.resolve(Svc)).toBeInstanceOf(Svc);
+    });
+
+    it("should accept a ClassProvider", () => {
+      class Base {}
+      class Impl extends Base {}
+      container.register({ provide: Base, useClass: Impl });
+      expect(container.resolve(Base)).toBeInstanceOf(Impl);
+    });
+
+    it("should accept a ValueProvider", () => {
+      const TOKEN = new InjectionToken<number>("port");
+      container.register({ provide: TOKEN, useValue: 3000 });
+      expect(container.resolve(TOKEN)).toBe(3000);
+    });
+
+    it("should accept a FactoryProvider", () => {
+      const TOKEN = new InjectionToken<{ id: number }>("obj");
+      container.register({
+        provide: TOKEN,
+        useFactory: () => ({ id: 42 }),
+      });
+      expect(container.resolve(TOKEN)).toEqual({ id: 42 });
+    });
+
+    it("should accept an ExistingProvider (alias)", () => {
+      class Original {}
+      const ALIAS = new InjectionToken<Original>("alias");
+
+      container.register(Original);
+      container.register({ provide: ALIAS, useExisting: Original });
+
+      expect(container.resolve(ALIAS)).toBe(container.resolve(Original));
+    });
+
+    it("should throw for provider missing a strategy", () => {
+      const TOKEN = new InjectionToken("bad");
+      expect(() => container.register({ provide: TOKEN } as any)).toThrow(
+        '[DI] Provider for "InjectionToken(bad)" is missing a strategy',
+      );
+    });
+  });
+
+  describe("registerMany", () => {
+    it("should register multiple providers at once", () => {
+      class A {}
+      class B {}
+      container.registerMany([A, B]);
+      expect(container.resolve(A)).toBeInstanceOf(A);
+      expect(container.resolve(B)).toBeInstanceOf(B);
+    });
+
+    it("should leave earlier registrations intact on partial failure", () => {
+      class A {}
+      class B {}
+      container.register(B); // pre-register B to cause duplicate error
+
+      expect(() => container.registerMany([A, B])).toThrow(
+        "is already registered",
+      );
+      // A was registered before B threw
+      expect(container.has(A)).toBe(true);
+    });
   });
 
   describe("double registration guard", () => {
@@ -95,27 +150,55 @@ describe("DI Container", () => {
         version = 2;
       }
       container.register(MyService);
-      container.register(MyService, MyServiceV2, { override: true });
+      container.register(
+        { provide: MyService, useClass: MyServiceV2 },
+        { override: true },
+      );
       const instance = container.resolve(MyService);
       expect(instance).toBeInstanceOf(MyServiceV2);
     });
 
-    it("should guard symbol tokens against double registration", () => {
-      const token = Symbol("MyToken");
+    it("should guard InjectionToken against double registration", () => {
+      const token = new InjectionToken("myToken");
       class Impl {}
-      container.register(token, Impl);
-      expect(() => container.register(token, Impl)).toThrow(
-        "is already registered",
-      );
+      container.register({ provide: token, useClass: Impl });
+      expect(() =>
+        container.register({ provide: token, useClass: Impl }),
+      ).toThrow("is already registered");
+    });
+  });
+
+  describe("inject() in constructors", () => {
+    it("should resolve via inject() during construction", () => {
+      class Dep {
+        value = 99;
+      }
+      class MyService {
+        dep = inject(Dep);
+      }
+
+      container.register(Dep);
+      container.register(MyService);
+
+      const svc = container.resolve(MyService);
+      expect(svc.dep).toBeInstanceOf(Dep);
+      expect(svc.dep.value).toBe(99);
     });
 
-    it("should guard string tokens against double registration", () => {
-      const token = "myToken";
-      class Impl {}
-      container.register(token, Impl);
-      expect(() => container.register(token, Impl)).toThrow(
-        "is already registered",
-      );
+    it("should resolve nested inject() chains", () => {
+      class C {
+        value = "c";
+      }
+      class B {
+        c = inject(C);
+      }
+      class A {
+        b = inject(B);
+      }
+
+      container.registerMany([A, B, C]);
+      const a = container.resolve(A);
+      expect(a.b.c.value).toBe("c");
     });
   });
 
@@ -123,15 +206,14 @@ describe("DI Container", () => {
     it("should detect A → B → A cycle", () => {
       class B {}
       class A {
-        b = container.resolve(B);
+        b = inject(B);
       }
-      // B depends on A
       class BImpl {
-        a = container.resolve(A);
+        a = inject(A);
       }
 
       container.register(A);
-      container.register(B, BImpl);
+      container.register({ provide: B, useClass: BImpl });
 
       expect(() => container.resolve(A)).toThrow(
         "[DI] Circular dependency detected: A → B → A",
@@ -139,43 +221,58 @@ describe("DI Container", () => {
     });
 
     it("should detect A → B → C → A cycle", () => {
-      const tokenA = "A";
-      const tokenB = "B";
-      const tokenC = "C";
+      const tokenA = new InjectionToken("A");
+      const tokenB = new InjectionToken("B");
+      const tokenC = new InjectionToken("C");
 
       class ServiceC {
-        a = container.resolve(tokenA);
+        a = inject(tokenA);
       }
       class ServiceB {
-        c = container.resolve(tokenC);
+        c = inject(tokenC);
       }
       class ServiceA {
-        b = container.resolve(tokenB);
+        b = inject(tokenB);
       }
 
-      container.register(tokenA, ServiceA);
-      container.register(tokenB, ServiceB);
-      container.register(tokenC, ServiceC);
+      container.register({ provide: tokenA, useClass: ServiceA });
+      container.register({ provide: tokenB, useClass: ServiceB });
+      container.register({ provide: tokenC, useClass: ServiceC });
 
       expect(() => container.resolve(tokenA)).toThrow(
-        "[DI] Circular dependency detected: A → B → C → A",
+        "[DI] Circular dependency detected: InjectionToken(A) → InjectionToken(B) → InjectionToken(C) → InjectionToken(A)",
       );
     });
 
     it("should not throw for cached singleton dependencies", () => {
       class Dep {}
       class MyService {
-        dep = container.resolve(Dep);
+        dep = inject(Dep);
       }
 
       container.register(Dep);
       container.register(MyService);
 
-      // Resolve Dep first so it's cached
       container.resolve(Dep);
 
-      // Now resolving MyService should work — Dep is cached
       expect(() => container.resolve(MyService)).not.toThrow();
+    });
+
+    it("should detect cycles via container.resolve() in constructors", () => {
+      class B {}
+      class A {
+        b = container.resolve(B);
+      }
+      class BImpl {
+        a = container.resolve(A);
+      }
+
+      container.register(A);
+      container.register({ provide: B, useClass: BImpl });
+
+      expect(() => container.resolve(A)).toThrow(
+        "[DI] Circular dependency detected: A → B → A",
+      );
     });
   });
 
@@ -188,7 +285,11 @@ describe("DI Container", () => {
 
     it("should resolve transient as new instance each time", () => {
       class MyService {}
-      container.register(MyService, { lifetime: "transient" });
+      container.register({
+        provide: MyService,
+        useClass: MyService,
+        lifetime: Lifetime.TRANSIENT,
+      });
       const a = container.resolve(MyService);
       const b = container.resolve(MyService);
       expect(a).toBeInstanceOf(MyService);
@@ -197,7 +298,11 @@ describe("DI Container", () => {
 
     it("should throw when resolving scoped token from root container", () => {
       class MyService {}
-      container.register(MyService, { lifetime: "scoped" });
+      container.register({
+        provide: MyService,
+        useClass: MyService,
+        lifetime: Lifetime.SCOPED,
+      });
       expect(() => container.resolve(MyService)).toThrow(
         'Cannot resolve scoped token "MyService" from root container. Use createScope().',
       );
@@ -205,7 +310,11 @@ describe("DI Container", () => {
 
     it("should resolve scoped token as singleton within a scope", () => {
       class MyService {}
-      container.register(MyService, { lifetime: "scoped" });
+      container.register({
+        provide: MyService,
+        useClass: MyService,
+        lifetime: Lifetime.SCOPED,
+      });
       const scope = container.createScope();
       const a = scope.resolve(MyService);
       const b = scope.resolve(MyService);
@@ -214,7 +323,11 @@ describe("DI Container", () => {
 
     it("should resolve scoped token as different instances across scopes", () => {
       class MyService {}
-      container.register(MyService, { lifetime: "scoped" });
+      container.register({
+        provide: MyService,
+        useClass: MyService,
+        lifetime: Lifetime.SCOPED,
+      });
       const scope1 = container.createScope();
       const scope2 = container.createScope();
       expect(scope1.resolve(MyService)).not.toBe(scope2.resolve(MyService));
@@ -230,43 +343,104 @@ describe("DI Container", () => {
 
     it("should resolve transient in child as new instance each time", () => {
       class MyService {}
-      container.register(MyService, { lifetime: "transient" });
+      container.register({
+        provide: MyService,
+        useClass: MyService,
+        lifetime: Lifetime.TRANSIENT,
+      });
       const scope = container.createScope();
       const a = scope.resolve(MyService);
       const b = scope.resolve(MyService);
       expect(a).not.toBe(b);
     });
+
+    it("should allow child scope to register scoped overrides", () => {
+      const TOKEN = new InjectionToken<string>("greeting");
+      container.register({
+        provide: TOKEN,
+        useFactory: () => "root",
+        lifetime: Lifetime.SCOPED,
+      });
+
+      const scope = container.createScope();
+      scope.register(
+        {
+          provide: TOKEN,
+          useFactory: () => "child",
+          lifetime: Lifetime.SCOPED,
+        },
+        { override: true },
+      );
+
+      expect(scope.resolve(TOKEN)).toBe("child");
+    });
+
+    it("should delegate singleton resolution to parent even if child overrides", () => {
+      class Base {
+        name = "base";
+      }
+      class Override {
+        name = "override";
+      }
+      container.register(Base);
+
+      const scope = container.createScope();
+      scope.register({ provide: Base, useClass: Override }, { override: true });
+
+      // Singleton always resolves from root — child override is ignored
+      expect(scope.resolve(Base).name).toBe("base");
+    });
   });
 
   describe("value provider", () => {
     it("should return the exact value reference", () => {
-      const token = Symbol("config");
+      const token = new InjectionToken<{ port: number }>("config");
       const config = { port: 3000 };
-      container.registerValue(token, config);
+      container.register({ provide: token, useValue: config });
       expect(container.resolve(token)).toBe(config);
     });
 
+    it("should support falsy values", () => {
+      const zero = new InjectionToken<number>("zero");
+      const empty = new InjectionToken<string>("empty");
+      const nul = new InjectionToken<null>("null");
+      const undef = new InjectionToken<undefined>("undef");
+      const bool = new InjectionToken<boolean>("false");
+
+      container.register({ provide: zero, useValue: 0 });
+      container.register({ provide: empty, useValue: "" });
+      container.register({ provide: nul, useValue: null });
+      container.register({ provide: undef, useValue: undefined });
+      container.register({ provide: bool, useValue: false });
+
+      expect(container.resolve(zero)).toBe(0);
+      expect(container.resolve(empty)).toBe("");
+      expect(container.resolve(nul)).toBe(null);
+      expect(container.resolve(undef)).toBe(undefined);
+      expect(container.resolve(bool)).toBe(false);
+    });
+
     it("should guard against double registration", () => {
-      const token = Symbol("val");
-      container.registerValue(token, 1);
-      expect(() => container.registerValue(token, 2)).toThrow(
+      const token = new InjectionToken<number>("val");
+      container.register({ provide: token, useValue: 1 });
+      expect(() => container.register({ provide: token, useValue: 2 })).toThrow(
         "is already registered",
       );
     });
 
     it("should allow override with { override: true }", () => {
-      const token = Symbol("val");
-      container.registerValue(token, 1);
-      container.registerValue(token, 2, { override: true });
+      const token = new InjectionToken<number>("val");
+      container.register({ provide: token, useValue: 1 });
+      container.register({ provide: token, useValue: 2 }, { override: true });
       expect(container.resolve(token)).toBe(2);
     });
   });
 
   describe("factory provider", () => {
-    it("should call factory once for singleton lifetime", () => {
-      const token = Symbol("factory");
+    it("should call factory once for singleton scope", () => {
+      const token = new InjectionToken<{ id: number }>("factory");
       const factory = vi.fn(() => ({ id: Math.random() }));
-      container.registerFactory(token, factory);
+      container.register({ provide: token, useFactory: factory });
 
       const a = container.resolve(token);
       const b = container.resolve(token);
@@ -274,10 +448,14 @@ describe("DI Container", () => {
       expect(factory).toHaveBeenCalledTimes(1);
     });
 
-    it("should call factory each time for transient lifetime", () => {
-      const token = Symbol("factory");
+    it("should call factory each time for transient scope", () => {
+      const token = new InjectionToken<{ id: number }>("factory");
       const factory = vi.fn(() => ({ id: Math.random() }));
-      container.registerFactory(token, factory, { lifetime: "transient" });
+      container.register({
+        provide: token,
+        useFactory: factory,
+        lifetime: Lifetime.TRANSIENT,
+      });
 
       const a = container.resolve(token);
       const b = container.resolve(token);
@@ -286,9 +464,11 @@ describe("DI Container", () => {
     });
 
     it("should support scoped factory in child container", () => {
-      const token = Symbol("factory");
-      container.registerFactory(token, () => ({ id: Math.random() }), {
-        lifetime: "scoped",
+      const token = new InjectionToken<{ id: number }>("factory");
+      container.register({
+        provide: token,
+        useFactory: () => ({ id: Math.random() }),
+        lifetime: Lifetime.SCOPED,
       });
 
       const scope1 = container.createScope();
@@ -299,28 +479,176 @@ describe("DI Container", () => {
     });
 
     it("should guard against double registration", () => {
-      const token = Symbol("factory");
-      container.registerFactory(token, () => 1);
-      expect(() => container.registerFactory(token, () => 2)).toThrow(
-        "is already registered",
-      );
+      const token = new InjectionToken("factory");
+      container.register({ provide: token, useFactory: () => 1 });
+      expect(() =>
+        container.register({ provide: token, useFactory: () => 2 }),
+      ).toThrow("is already registered");
     });
 
     it("should have injection context active during factory call", () => {
       class Dep {}
       container.register(Dep);
 
-      const token = Symbol("factory");
-      container.registerFactory(token, () => ({
-        dep: container.resolve(Dep),
-        hadContext: container.isInInjectionContext,
-      }));
-
-      const instance = container.resolve<{ dep: Dep; hadContext: boolean }>(
-        token,
+      const token = new InjectionToken<{ dep: Dep; hadContext: boolean }>(
+        "factory",
       );
+      container.register({
+        provide: token,
+        useFactory: () => ({
+          dep: inject(Dep),
+          hadContext: container.isInInjectionContext,
+        }),
+      });
+
+      const instance = container.resolve(token);
       expect(instance.dep).toBeInstanceOf(Dep);
       expect(instance.hadContext).toBe(true);
+    });
+
+    it("should throw if factory returns a Promise", () => {
+      const token = new InjectionToken("asyncBad");
+      container.register({
+        provide: token,
+        useFactory: (() => Promise.resolve("value")) as any,
+      });
+
+      expect(() => container.resolve(token)).toThrow("returned a Promise");
+    });
+
+    it("should pass resolved inject tokens as factory arguments", () => {
+      const A = new InjectionToken<string>("a");
+      const B = new InjectionToken<number>("b");
+      const RESULT = new InjectionToken<string>("result");
+
+      container.register({ provide: A, useValue: "hello" });
+      container.register({ provide: B, useValue: 42 });
+      container.register({
+        provide: RESULT,
+        useFactory: (a: string, b: number) => `${a}-${b}`,
+        inject: [A, B],
+      });
+
+      expect(container.resolve(RESULT)).toBe("hello-42");
+    });
+
+    it("should resolve OptionalFactoryDependency when token is registered", () => {
+      const DEP = new InjectionToken<string>("dep");
+      const RESULT = new InjectionToken<string>("result");
+
+      container.register({ provide: DEP, useValue: "present" });
+      container.register({
+        provide: RESULT,
+        useFactory: (d: string) => `got-${d}`,
+        inject: [{ token: DEP, optional: true }],
+      });
+
+      expect(container.resolve(RESULT)).toBe("got-present");
+    });
+
+    it("should pass undefined for optional dependency when token is not registered", () => {
+      const MISSING = new InjectionToken<string>("missing");
+      const RESULT = new InjectionToken<string | undefined>("result");
+
+      container.register({
+        provide: RESULT,
+        useFactory: (d?: string) => d ?? "fallback",
+        inject: [{ token: MISSING, optional: true }],
+      });
+
+      expect(container.resolve(RESULT)).toBe("fallback");
+    });
+
+    it("should throw for missing non-optional inject token", () => {
+      const MISSING = new InjectionToken<string>("missing");
+      const TOKEN = new InjectionToken<string>("result");
+
+      container.register({
+        provide: TOKEN,
+        useFactory: (d: string) => d,
+        inject: [MISSING],
+      });
+
+      expect(() => container.resolve(TOKEN)).toThrow(
+        "No provider registered for InjectionToken(missing)",
+      );
+    });
+
+    it("should handle mix of plain tokens and optional dependencies", () => {
+      const A = new InjectionToken<string>("a");
+      const B = new InjectionToken<string>("b");
+      const RESULT = new InjectionToken<string>("result");
+
+      container.register({ provide: A, useValue: "alpha" });
+      container.register({
+        provide: RESULT,
+        useFactory: (a: string, b?: string) => `${a}-${b ?? "none"}`,
+        inject: [A, { token: B, optional: true }],
+      });
+
+      expect(container.resolve(RESULT)).toBe("alpha-none");
+    });
+  });
+
+  describe("existing provider", () => {
+    it("should resolve alias to the original token", () => {
+      class Original {
+        value = "original";
+      }
+      const ALIAS = new InjectionToken<Original>("alias");
+
+      container.register(Original);
+      container.register({ provide: ALIAS, useExisting: Original });
+
+      const fromAlias = container.resolve(ALIAS);
+      const fromOriginal = container.resolve(Original);
+      expect(fromAlias).toBe(fromOriginal);
+    });
+
+    it("should follow alias chains", () => {
+      class Impl {
+        value = 42;
+      }
+      const ALIAS1 = new InjectionToken<Impl>("alias1");
+      const ALIAS2 = new InjectionToken<Impl>("alias2");
+
+      container.register(Impl);
+      container.register({ provide: ALIAS1, useExisting: Impl });
+      container.register({ provide: ALIAS2, useExisting: ALIAS1 });
+
+      expect(container.resolve(ALIAS2)).toBe(container.resolve(Impl));
+    });
+
+    it("should detect circular aliases", () => {
+      const A = new InjectionToken("A");
+      const B = new InjectionToken("B");
+
+      container.register({ provide: A, useExisting: B });
+      container.register({ provide: B, useExisting: A });
+
+      expect(() => container.resolve(A)).toThrow(
+        "[DI] Circular dependency detected",
+      );
+    });
+  });
+
+  describe("has", () => {
+    it("should return true for registered tokens", () => {
+      class Svc {}
+      container.register(Svc);
+      expect(container.has(Svc)).toBe(true);
+    });
+
+    it("should return false for unregistered tokens", () => {
+      class Svc {}
+      expect(container.has(Svc)).toBe(false);
+    });
+
+    it("should find tokens registered in parent", () => {
+      class Svc {}
+      container.register(Svc);
+      const child = container.createScope();
+      expect(child.has(Svc)).toBe(true);
     });
   });
 
@@ -328,8 +656,7 @@ describe("DI Container", () => {
     it("should not throw when all tokens are registered", () => {
       class A {}
       class B {}
-      container.register(A);
-      container.register(B);
+      container.registerMany([A, B]);
       expect(() => container.validate([A, B])).not.toThrow();
     });
 
@@ -359,10 +686,14 @@ describe("DI Container", () => {
     it("should throw when singleton depends on transient", () => {
       class Transient {}
       class Singleton {
-        dep = container.resolve(Transient);
+        dep = inject(Transient);
       }
 
-      container.register(Transient, { lifetime: "transient" });
+      container.register({
+        provide: Transient,
+        useClass: Transient,
+        lifetime: Lifetime.TRANSIENT,
+      });
       container.register(Singleton);
 
       expect(() => container.resolve(Singleton)).toThrow(
@@ -373,11 +704,19 @@ describe("DI Container", () => {
     it("should throw when scoped depends on transient", () => {
       class Transient {}
       class Scoped {
-        dep = container.resolve(Transient);
+        dep = inject(Transient);
       }
 
-      container.register(Transient, { lifetime: "transient" });
-      container.register(Scoped, { lifetime: "scoped" });
+      container.register({
+        provide: Transient,
+        useClass: Transient,
+        lifetime: Lifetime.TRANSIENT,
+      });
+      container.register({
+        provide: Scoped,
+        useClass: Scoped,
+        lifetime: Lifetime.SCOPED,
+      });
 
       const scope = container.createScope();
       expect(() => scope.resolve(Scoped)).toThrow(
@@ -387,12 +726,19 @@ describe("DI Container", () => {
 
     it("should throw when singleton factory depends on transient", () => {
       class Transient {}
-      container.register(Transient, { lifetime: "transient" });
+      container.register({
+        provide: Transient,
+        useClass: Transient,
+        lifetime: Lifetime.TRANSIENT,
+      });
 
-      const token = Symbol("singletonFactory");
-      container.registerFactory(token, () => ({
-        dep: container.resolve(Transient),
-      }));
+      const token = new InjectionToken("singletonFactory");
+      container.register({
+        provide: token,
+        useFactory: () => ({
+          dep: inject(Transient),
+        }),
+      });
 
       expect(() => container.resolve(token)).toThrow(
         "Captive dependency detected",
@@ -402,7 +748,7 @@ describe("DI Container", () => {
     it("should allow singleton depends on singleton", () => {
       class DepSingleton {}
       class Singleton {
-        dep = container.resolve(DepSingleton);
+        dep = inject(DepSingleton);
       }
 
       container.register(DepSingleton);
@@ -414,11 +760,15 @@ describe("DI Container", () => {
     it("should allow scoped depends on singleton", () => {
       class Singleton {}
       class Scoped {
-        dep = container.resolve(Singleton);
+        dep = inject(Singleton);
       }
 
       container.register(Singleton);
-      container.register(Scoped, { lifetime: "scoped" });
+      container.register({
+        provide: Scoped,
+        useClass: Scoped,
+        lifetime: Lifetime.SCOPED,
+      });
 
       const scope = container.createScope();
       expect(() => scope.resolve(Scoped)).not.toThrow();
@@ -427,11 +777,15 @@ describe("DI Container", () => {
     it("should allow transient depends on singleton", () => {
       class Singleton {}
       class Transient {
-        dep = container.resolve(Singleton);
+        dep = inject(Singleton);
       }
 
       container.register(Singleton);
-      container.register(Transient, { lifetime: "transient" });
+      container.register({
+        provide: Transient,
+        useClass: Transient,
+        lifetime: Lifetime.TRANSIENT,
+      });
 
       expect(() => container.resolve(Transient)).not.toThrow();
     });
@@ -439,76 +793,592 @@ describe("DI Container", () => {
     it("should allow transient depends on transient", () => {
       class DepTransient {}
       class Transient {
-        dep = container.resolve(DepTransient);
+        dep = inject(DepTransient);
       }
 
-      container.register(DepTransient, { lifetime: "transient" });
-      container.register(Transient, { lifetime: "transient" });
+      container.register({
+        provide: DepTransient,
+        useClass: DepTransient,
+        lifetime: Lifetime.TRANSIENT,
+      });
+      container.register({
+        provide: Transient,
+        useClass: Transient,
+        lifetime: Lifetime.TRANSIENT,
+      });
 
       expect(() => container.resolve(Transient)).not.toThrow();
     });
   });
 
-  describe("resolveAsync", () => {
-    it("should call init() on instance with init method", async () => {
-      const initFn = vi.fn(async () => {});
-      class MyService {
-        init = initFn;
+  describe("clear", () => {
+    it("should allow re-registration after clear", () => {
+      class Svc {
+        version = 1;
       }
-      container.register(MyService);
+      container.register(Svc);
+      const first = container.resolve(Svc);
 
-      await container.resolveAsync(MyService);
-      expect(initFn).toHaveBeenCalledTimes(1);
+      container.clear();
+
+      class SvcV2 {
+        version = 2;
+      }
+      container.register({ provide: Svc, useClass: SvcV2 });
+      const second = container.resolve(Svc);
+
+      expect(first.version).toBe(1);
+      expect(second.version).toBe(2);
     });
 
-    it("should call init() only once for singleton", async () => {
-      const initFn = vi.fn(async () => {});
-      class MyService {
-        init = initFn;
-      }
-      container.register(MyService);
+    it("should clear cached instances so new resolve creates fresh ones", () => {
+      class Svc {}
+      container.register(Svc);
+      const before = container.resolve(Svc);
 
-      const a = await container.resolveAsync(MyService);
-      const b = await container.resolveAsync(MyService);
-      expect(initFn).toHaveBeenCalledTimes(1);
-      expect(a).toBe(b);
+      container.clear();
+      container.register(Svc);
+      const after = container.resolve(Svc);
+
+      expect(before).not.toBe(after);
     });
+  });
 
-    it("should call init() each time for transient", async () => {
-      const initFn = vi.fn(async () => {});
-      const token = Symbol("svc");
-      container.registerFactory(token, () => ({ init: initFn }), {
-        lifetime: "transient",
+  describe("dispose / async dispose", () => {
+    function makeScopedProvider(token: any, lifetime = Lifetime.SCOPED) {
+      return { provide: token, useClass: token, lifetime };
+    }
+
+    describe("basic lifecycle", () => {
+      it("should allow disposing the root container", () => {
+        expect(() => container.dispose()).not.toThrow();
       });
 
-      const a = await container.resolveAsync(token);
-      const b = await container.resolveAsync(token);
-      expect(initFn).toHaveBeenCalledTimes(2);
-      expect(a).not.toBe(b);
+      it("should allow disposing the root container asynchronously", async () => {
+        await expect(container.disposeAsync()).resolves.toBeUndefined();
+      });
+
+      it("should be idempotent — calling dispose twice does not throw", () => {
+        const scope = container.createScope();
+        scope.dispose();
+        expect(() => scope.dispose()).not.toThrow();
+      });
+
+      it("should be idempotent — calling disposeAsync twice does not throw", async () => {
+        const scope = container.createScope();
+        await scope.disposeAsync();
+        await expect(scope.disposeAsync()).resolves.toBeUndefined();
+      });
+
+      it("should dispose a scope with no resolved instances", () => {
+        const scope = container.createScope();
+        expect(() => scope.dispose()).not.toThrow();
+      });
     });
 
-    it("should work for instances without init method", async () => {
-      class MyService {
-        value = 42;
-      }
-      container.register(MyService);
-
-      const instance = await container.resolveAsync(MyService);
-      expect(instance).toBeInstanceOf(MyService);
-      expect(instance.value).toBe(42);
-    });
-
-    it("should propagate init() errors", async () => {
-      class MyService {
-        async init() {
-          throw new Error("init failed");
+    describe("root container disposal", () => {
+      it("should call Symbol.dispose on root singleton instances", () => {
+        const spy = vi.fn();
+        class Svc {
+          [Symbol.dispose]() {
+            spy();
+          }
         }
-      }
-      container.register(MyService);
+        container.register(Svc);
+        container.resolve(Svc);
 
-      await expect(container.resolveAsync(MyService)).rejects.toThrow(
-        "init failed",
-      );
+        container.dispose();
+        expect(spy).toHaveBeenCalledTimes(1);
+      });
+
+      it("should call Symbol.asyncDispose on root singleton instances", async () => {
+        const spy = vi.fn();
+        class Svc {
+          async [Symbol.asyncDispose]() {
+            spy();
+          }
+        }
+        container.register(Svc);
+        container.resolve(Svc);
+
+        await container.disposeAsync();
+        expect(spy).toHaveBeenCalledTimes(1);
+      });
+
+      it("should dispose root singletons in reverse resolution order", () => {
+        const order: string[] = [];
+
+        class A {
+          [Symbol.dispose]() {
+            order.push("A");
+          }
+        }
+        class B {
+          [Symbol.dispose]() {
+            order.push("B");
+          }
+        }
+        class C {
+          [Symbol.dispose]() {
+            order.push("C");
+          }
+        }
+
+        container.register(A);
+        container.register(B);
+        container.register(C);
+
+        container.resolve(A);
+        container.resolve(B);
+        container.resolve(C);
+
+        container.dispose();
+        expect(order).toEqual(["C", "B", "A"]);
+      });
+
+      it("should chain errors from root singleton disposal with SuppressedError", () => {
+        const err1 = new Error("first");
+        const err2 = new Error("second");
+
+        class A {
+          [Symbol.dispose]() {
+            throw err1;
+          }
+        }
+        class B {
+          [Symbol.dispose]() {
+            throw err2;
+          }
+        }
+
+        container.register(A);
+        container.register(B);
+
+        container.resolve(A);
+        container.resolve(B);
+
+        try {
+          container.dispose();
+          expect.unreachable("should have thrown");
+        } catch (e) {
+          expect(e).toBeInstanceOf(SuppressedError);
+          const se = e as SuppressedError;
+          expect(se.error).toBe(err1);
+          expect(se.suppressed).toBe(err2);
+        }
+      });
+
+      it("should throw on resolve after root container disposal", () => {
+        class Svc {}
+        container.register(Svc);
+        container.dispose();
+
+        expect(() => container.resolve(Svc)).toThrow(
+          "Cannot resolve from a disposed container scope.",
+        );
+      });
+
+      it("should throw on register after root container disposal", () => {
+        container.dispose();
+
+        expect(() => container.register(class X {})).toThrow(
+          "Cannot register on a disposed container scope.",
+        );
+      });
+
+      it("should throw on createScope after root container disposal", () => {
+        container.dispose();
+
+        expect(() => container.createScope()).toThrow(
+          "Cannot create a child scope from a disposed container.",
+        );
+      });
+
+      it("should be idempotent — disposing root twice does not throw", () => {
+        container.dispose();
+        expect(() => container.dispose()).not.toThrow();
+      });
+
+      it("should not affect already-created child scopes", () => {
+        class Svc {}
+        container.register({
+          provide: Svc,
+          useClass: Svc,
+          lifetime: Lifetime.SCOPED,
+        });
+        const scope = container.createScope();
+        scope.resolve(Svc);
+
+        container.dispose();
+
+        expect(() => scope.resolve(Svc)).not.toThrow();
+      });
+    });
+
+    describe("protocol invocation", () => {
+      it("should call Symbol.dispose on cached instances", () => {
+        const spy = vi.fn();
+        class Svc {
+          [Symbol.dispose]() {
+            spy();
+          }
+        }
+        container.register(makeScopedProvider(Svc));
+        const scope = container.createScope();
+        scope.resolve(Svc);
+
+        scope.dispose();
+        expect(spy).toHaveBeenCalledTimes(1);
+      });
+
+      it("should call Symbol.asyncDispose on cached instances", async () => {
+        const spy = vi.fn();
+        class Svc {
+          async [Symbol.asyncDispose]() {
+            spy();
+          }
+        }
+        container.register(makeScopedProvider(Svc));
+        const scope = container.createScope();
+        scope.resolve(Svc);
+
+        await scope.disposeAsync();
+        expect(spy).toHaveBeenCalledTimes(1);
+      });
+
+      it("should fall back to Symbol.dispose when Symbol.asyncDispose is absent", async () => {
+        const spy = vi.fn();
+        class Svc {
+          [Symbol.dispose]() {
+            spy();
+          }
+        }
+        container.register(makeScopedProvider(Svc));
+        const scope = container.createScope();
+        scope.resolve(Svc);
+
+        await scope.disposeAsync();
+        expect(spy).toHaveBeenCalledTimes(1);
+      });
+
+      it("should NOT call Symbol.asyncDispose from sync dispose", () => {
+        const asyncSpy = vi.fn();
+        class Svc {
+          async [Symbol.asyncDispose]() {
+            asyncSpy();
+          }
+        }
+        container.register(makeScopedProvider(Svc));
+        const scope = container.createScope();
+        scope.resolve(Svc);
+
+        scope.dispose();
+        expect(asyncSpy).not.toHaveBeenCalled();
+      });
+
+      it("should skip instances without disposal methods", () => {
+        class Plain {}
+        container.register(makeScopedProvider(Plain));
+        const scope = container.createScope();
+        scope.resolve(Plain);
+
+        expect(() => scope.dispose()).not.toThrow();
+      });
+    });
+
+    describe("reverse-resolution order", () => {
+      it("should dispose in reverse resolution order", () => {
+        const order: string[] = [];
+
+        class A {
+          [Symbol.dispose]() {
+            order.push("A");
+          }
+        }
+        class B {
+          [Symbol.dispose]() {
+            order.push("B");
+          }
+        }
+        class C {
+          [Symbol.dispose]() {
+            order.push("C");
+          }
+        }
+
+        container.register(makeScopedProvider(A));
+        container.register(makeScopedProvider(B));
+        container.register(makeScopedProvider(C));
+
+        const scope = container.createScope();
+        scope.resolve(A);
+        scope.resolve(B);
+        scope.resolve(C);
+
+        scope.dispose();
+        expect(order).toEqual(["C", "B", "A"]);
+      });
+
+      it("should dispose async in reverse resolution order", async () => {
+        const order: string[] = [];
+
+        class A {
+          async [Symbol.asyncDispose]() {
+            order.push("A");
+          }
+        }
+        class B {
+          async [Symbol.asyncDispose]() {
+            order.push("B");
+          }
+        }
+        class C {
+          async [Symbol.asyncDispose]() {
+            order.push("C");
+          }
+        }
+
+        container.register(makeScopedProvider(A));
+        container.register(makeScopedProvider(B));
+        container.register(makeScopedProvider(C));
+
+        const scope = container.createScope();
+        scope.resolve(A);
+        scope.resolve(B);
+        scope.resolve(C);
+
+        await scope.disposeAsync();
+        expect(order).toEqual(["C", "B", "A"]);
+      });
+    });
+
+    describe("error handling", () => {
+      it("should rethrow if one instance disposal fails", () => {
+        const err = new Error("boom");
+        class Svc {
+          [Symbol.dispose]() {
+            throw err;
+          }
+        }
+        container.register(makeScopedProvider(Svc));
+        const scope = container.createScope();
+        scope.resolve(Svc);
+
+        expect(() => scope.dispose()).toThrow(err);
+      });
+
+      it("should chain two errors with SuppressedError", () => {
+        const err1 = new Error("first");
+        const err2 = new Error("second");
+
+        class A {
+          [Symbol.dispose]() {
+            throw err1;
+          }
+        }
+        class B {
+          [Symbol.dispose]() {
+            throw err2;
+          }
+        }
+
+        container.register(makeScopedProvider(A));
+        container.register(makeScopedProvider(B));
+
+        const scope = container.createScope();
+        scope.resolve(A);
+        scope.resolve(B);
+
+        try {
+          scope.dispose(); // reverse order: B throws err2, then A throws err1
+          expect.unreachable("should have thrown");
+        } catch (e) {
+          expect(e).toBeInstanceOf(SuppressedError);
+          const se = e as SuppressedError;
+          expect(se.error).toBe(err1);
+          expect(se.suppressed).toBe(err2);
+        }
+      });
+
+      it("should chain three errors into nested SuppressedError", () => {
+        const err1 = new Error("first");
+        const err2 = new Error("second");
+        const err3 = new Error("third");
+
+        class A {
+          [Symbol.dispose]() {
+            throw err1;
+          }
+        }
+        class B {
+          [Symbol.dispose]() {
+            throw err2;
+          }
+        }
+        class C {
+          [Symbol.dispose]() {
+            throw err3;
+          }
+        }
+
+        container.register(makeScopedProvider(A));
+        container.register(makeScopedProvider(B));
+        container.register(makeScopedProvider(C));
+
+        const scope = container.createScope();
+        scope.resolve(A);
+        scope.resolve(B);
+        scope.resolve(C);
+
+        try {
+          scope.dispose(); // reverse: C(err3), B(err2), A(err1)
+          expect.unreachable("should have thrown");
+        } catch (e) {
+          const se = e as SuppressedError;
+          expect(se.error).toBe(err1);
+          const inner = se.suppressed as SuppressedError;
+          expect(inner.error).toBe(err2);
+          expect(inner.suppressed).toBe(err3);
+        }
+      });
+
+      it("should chain errors with SuppressedError in disposeAsync", async () => {
+        const err1 = new Error("first");
+        const err2 = new Error("second");
+
+        class A {
+          async [Symbol.asyncDispose]() {
+            throw err1;
+          }
+        }
+        class B {
+          async [Symbol.asyncDispose]() {
+            throw err2;
+          }
+        }
+
+        container.register(makeScopedProvider(A));
+        container.register(makeScopedProvider(B));
+
+        const scope = container.createScope();
+        scope.resolve(A);
+        scope.resolve(B);
+
+        try {
+          await scope.disposeAsync(); // reverse: B(err2), A(err1)
+          expect.unreachable("should have thrown");
+        } catch (e) {
+          const se = e as SuppressedError;
+          expect(se.error).toBe(err1);
+          expect(se.suppressed).toBe(err2);
+        }
+      });
+
+      it("should still reject further resolves after disposal throws", () => {
+        class Svc {
+          [Symbol.dispose]() {
+            throw new Error("boom");
+          }
+        }
+        container.register(makeScopedProvider(Svc));
+        const scope = container.createScope();
+        scope.resolve(Svc);
+
+        expect(() => scope.dispose()).toThrow();
+        expect(() => scope.resolve(Svc)).toThrow(
+          "Cannot resolve from a disposed container scope.",
+        );
+      });
+    });
+
+    describe("post-dispose guards", () => {
+      it("should throw on resolve after dispose", () => {
+        class Svc {}
+        container.register(makeScopedProvider(Svc));
+        const scope = container.createScope();
+        scope.dispose();
+
+        expect(() => scope.resolve(Svc)).toThrow(
+          "Cannot resolve from a disposed container scope.",
+        );
+      });
+
+      it("should throw on register after dispose", () => {
+        const scope = container.createScope();
+        scope.dispose();
+
+        expect(() => scope.register(class X {})).toThrow(
+          "Cannot register on a disposed container scope.",
+        );
+      });
+
+      it("should throw on createScope after dispose", () => {
+        const scope = container.createScope();
+        scope.dispose();
+
+        expect(() => scope.createScope()).toThrow(
+          "Cannot create a child scope from a disposed container.",
+        );
+      });
+    });
+
+    describe("using / await using", () => {
+      it("should work with using statement", () => {
+        const spy = vi.fn();
+        class Svc {
+          [Symbol.dispose]() {
+            spy();
+          }
+        }
+        container.register(makeScopedProvider(Svc));
+
+        {
+          using scope = container.createScope();
+          scope.resolve(Svc);
+        }
+
+        expect(spy).toHaveBeenCalledTimes(1);
+      });
+
+      it("should work with await using statement", async () => {
+        const spy = vi.fn();
+        class Svc {
+          async [Symbol.asyncDispose]() {
+            spy();
+          }
+        }
+        container.register(makeScopedProvider(Svc));
+
+        {
+          await using scope = container.createScope();
+          scope.resolve(Svc);
+        }
+
+        expect(spy).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    describe("scope isolation", () => {
+      it("should not affect the parent container", () => {
+        class Svc {}
+        container.register(Svc);
+        const scope = container.createScope();
+        scope.dispose();
+
+        expect(() => container.resolve(Svc)).not.toThrow();
+      });
+
+      it("should not affect sibling scopes", () => {
+        class Svc {}
+        container.register(makeScopedProvider(Svc));
+        const scope1 = container.createScope();
+        const scope2 = container.createScope();
+
+        scope1.resolve(Svc);
+        scope1.dispose();
+
+        expect(() => scope2.resolve(Svc)).not.toThrow();
+      });
     });
   });
 });

@@ -1,5 +1,5 @@
-import { Application } from "decorify";
-import { ExpressAdapter } from "decorify/adapters/express";
+import { Application } from "@decorify/core";
+import { ExpressAdapter } from "@decorify/express-adapter";
 import { UserController } from "./user.module/user.controller.js";
 
 async function bootstrap() {

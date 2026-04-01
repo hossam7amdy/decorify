@@ -2,18 +2,19 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { registerControllers } from "./router.js";
 import { Controller, Get } from "./http/decorators.js";
 import { Injectable } from "@decorify/di";
-import { container } from "@decorify/di";
+import { Container } from "@decorify/di";
 import { LifecycleManager } from "./lifecycle/manager.js";
 import type { HttpAdapter } from "./adapters/http-adapter.js";
 import type { HttpContext } from "./context.js";
 import { UseGuard, UseMiddleware } from "./http/middleware-decorator.js";
 
 describe("Router", () => {
+  let container: Container;
   let mockAdapter: any;
   let mockLifecycle: any;
 
   beforeEach(() => {
-    container.clear();
+    container = new Container();
     mockAdapter = {
       registerRoute: vi.fn(),
       listen: vi.fn(),
@@ -36,6 +37,7 @@ describe("Router", () => {
     }
 
     registerControllers(
+      container,
       mockAdapter as HttpAdapter,
       [MyController],
       mockLifecycle,
@@ -65,6 +67,7 @@ describe("Router", () => {
     }
 
     registerControllers(
+      container,
       mockAdapter as HttpAdapter,
       [MyController],
       mockLifecycle,
@@ -96,6 +99,7 @@ describe("Router", () => {
     }
 
     registerControllers(
+      container,
       mockAdapter as HttpAdapter,
       [MyController],
       mockLifecycle,
@@ -133,6 +137,7 @@ describe("Router", () => {
     }
 
     registerControllers(
+      container,
       mockAdapter as HttpAdapter,
       [MyController],
       mockLifecycle,
@@ -179,6 +184,7 @@ describe("Router", () => {
     }
 
     registerControllers(
+      container,
       mockAdapter as HttpAdapter,
       [MyController],
       mockLifecycle,

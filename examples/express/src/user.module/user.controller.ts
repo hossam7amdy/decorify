@@ -1,6 +1,6 @@
-import type { HttpContext } from "decorify";
-import { Controller, Get, Post } from "decorify";
-import { Injectable, inject } from "decorify";
+import type { HttpContext } from "@decorify/core";
+import { Controller, Get, Post } from "@decorify/core";
+import { Injectable, inject } from "@decorify/core";
 import { UserService } from "./user.service.js";
 
 @Injectable()

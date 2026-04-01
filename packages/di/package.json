@@ -21,7 +21,7 @@
   ],
   "scripts": {
     "build": "tsc --build",
-    "clean": "node --eval \"fs.rmSync('dist', { recursive: true, force: true })\"",
+    "clean": "node --eval \"fs.rmSync('dist', { recursive: true, force: true }); fs.rmSync('tsconfig.tsbuildinfo', { force: true })\"",
     "prepublishOnly": "pnpm clean && pnpm build",
     "test": "vitest run",
     "test:watch": "vitest",

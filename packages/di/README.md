@@ -13,21 +13,22 @@ pnpm add @decorify/di
 ## Features
 
 - **Stage 3 decorators** — `experimentalDecorators: false`
-- Three lifetime scopes: `singleton`, `transient`, `scoped`
+- Unified provider API — class, value, factory, and alias providers
+- `InjectionToken` for non-class dependencies (config, interfaces)
+- Three lifetimes: `singleton`, `transient`, `scoped`
 - Circular dependency detection
 - Captive dependency detection (prevents longer-lived services from capturing shorter-lived ones)
-- Async initialization via `AsyncInitializable`
-- `registerValue` and `registerFactory` for non-class providers
 - Scoped containers via `createScope()`
+- `AsyncLocalStorage`-based injection context — `inject()` works in constructors, factories, and nested resolution
 
 ## Usage
 
 ### `@Injectable`
 
-Marks a class as injectable and auto-registers it in the global container:
+Marks a class as injectable. Classes decorated with `@Injectable()` are auto-registered when first resolved:
 
 ```ts
-import { Injectable } from "@decorify/di";
+import { Injectable, Lifetime } from "@decorify/di";
 
 @Injectable()
 export class UserRepository {
@@ -37,7 +38,7 @@ export class UserRepository {
 }
 
 // With a custom lifetime
-@Injectable({ lifetime: "transient" })
+@Injectable({ lifetime: Lifetime.TRANSIENT })
 export class RequestLogger {
   /* ... */
 }
@@ -45,7 +46,7 @@ export class RequestLogger {
 
 ### `inject()` — functional injection
 
-Resolves a dependency inside a field initializer or constructor. Must be called while the container is constructing an instance.
+Resolves a dependency inside a field initializer, constructor, or factory function. Must be called during a `container.resolve()` call:
 
 ```ts
 import { Injectable, inject } from "@decorify/di";
@@ -70,69 +71,90 @@ export class UserController {
 ### Resolving instances
 
 ```ts
-import { container } from "@decorify/di";
+import { Container } from "@decorify/di";
 
+const container = new Container();
+container.register(UserService);
 const service = container.resolve(UserService);
 ```
 
 ## Container API
 
-### `container.register(token, opts?)`
+### `container.register(provider, opts?)`
 
-Register a class provider. Defaults to `singleton` lifetime.
+Register a provider. Accepts a bare constructor, or a structured provider object. Defaults to `singleton` lifetime.
 
 ```ts
+// Bare class (token = class itself)
 container.register(UserService);
-container.register(UserService, { lifetime: "transient" });
-// Register with an abstract token
-container.register(IUserService, UserService);
-container.register(IUserService, UserService, { override: true });
-```
 
-### `container.registerValue(token, value, opts?)`
+// Class provider (abstract token → concrete impl)
+container.register({ provide: IUserService, useClass: UserService });
 
-Register a pre-existing value (always singleton):
+// Value provider
+container.register({ provide: DB_URL, useValue: "postgres://localhost/mydb" });
 
-```ts
-container.registerValue("DB_URL", "postgres://localhost/mydb");
-container.registerValue(Config, new Config({ debug: true }));
-```
-
-### `container.registerFactory(token, factory, opts?)`
-
-Register a factory function:
-
-```ts
-container.registerFactory("Logger", () => new Logger({ level: "info" }));
-container.registerFactory("RequestId", () => crypto.randomUUID(), {
-  lifetime: "transient",
+// Factory provider
+container.register({
+  provide: LOGGER,
+  useFactory: () => new Logger({ level: "info" }),
 });
+
+// Alias provider
+container.register({ provide: ALIAS_TOKEN, useExisting: UserService });
+
+// Override an existing registration
+container.register(UserService, { override: true });
+
+// With explicit lifetime
+container.register({
+  provide: RequestHandler,
+  useClass: RequestHandler,
+  lifetime: Lifetime.SCOPED,
+});
+```
+
+### `container.registerMany(providers)`
+
+Register multiple providers at once:
+
+```ts
+container.registerMany([
+  UserRepository,
+  UserService,
+  { provide: DB_URL, useValue: "postgres://localhost/mydb" },
+]);
 ```
 
 ### `container.resolve(token)`
 
-Synchronously resolve a token. Throws if the token is not registered or a circular/captive dependency is detected.
+Synchronously resolve a token. Throws if:
 
-### `container.resolveAsync(token)`
-
-Like `resolve`, but additionally calls `init()` on instances that implement `AsyncInitializable`.
-
-```ts
-const db = await container.resolveAsync(Database);
-```
+- The token is not registered (and not `@Injectable`)
+- A circular dependency is detected
+- A captive dependency is detected
+- A factory returns a `Promise`
 
 ### `container.createScope()`
 
-Create a child container for resolving `scoped` dependencies. Singletons are still served by the parent.
+Create a child container for resolving `scoped` dependencies. Singletons delegate to the parent.
 
 ```ts
 const scope = container.createScope();
 const handler = scope.resolve(RequestHandler);
 ```
 
+### `container.has(token)`
+
+Check if a token is registered (including parent containers):
+
+```ts
+container.has(UserService); // true / false
+```
+
 ### `container.validate(tokens)`
 
-Assert that all given tokens are registered. Useful at startup to catch missing registrations early.
+Assert that all given tokens are registered. Useful at startup:
 
 ```ts
 container.validate([UserService, UserRepository]);
@@ -142,6 +164,26 @@ container.validate([UserService, UserRepository]);
 
 Remove all instances and registrations. Primarily useful in tests.
 
+## `InjectionToken`
+
+Use `InjectionToken` for non-class dependencies (config values, interfaces, primitives):
+
+```ts
+import { InjectionToken } from "@decorify/di";
+
+const DB_URL = new InjectionToken<string>("DB_URL");
+const APP_CONFIG = new InjectionToken<AppConfig>("APP_CONFIG");
+
+container.register({ provide: DB_URL, useValue: "postgres://localhost/mydb" });
+container.register({
+  provide: APP_CONFIG,
+  useFactory: () => loadConfig(),
+});
+
+// Resolve
+const url = container.resolve(DB_URL); // string
+```
+
 ## Lifetimes
 
 | Lifetime    | Description                                         |
@@ -150,21 +192,14 @@ Remove all instances and registrations. Primarily useful in tests.
 | `transient` | New instance on every `resolve()` call              |
 | `scoped`    | One instance per scope created with `createScope()` |
 
-## Async Initialization
-
-Implement the `AsyncInitializable` interface and resolve with `resolveAsync`:
-
 ```ts
-import type { AsyncInitializable } from "@decorify/di";
+import { Lifetime } from "@decorify/di";
 
-@Injectable()
-class Database implements AsyncInitializable {
-  async init() {
-    await this.connect();
-  }
-}
-
-const db = await container.resolveAsync(Database);
+container.register({
+  provide: MyService,
+  useClass: MyService,
+  lifetime: Lifetime.TRANSIENT,
+});
 ```
 
 ## Types
@@ -172,12 +207,16 @@ const db = await container.resolveAsync(Database);
 ```ts
 import type {
   Constructor,
-  AbstractConstructor,
   Token,
-  Lifetime,
   Provider,
-  AsyncInitializable,
+  ClassProvider,
+  ValueProvider,
+  FactoryProvider,
+  ExistingProvider,
+  OptionalFactoryDependency,
 } from "@decorify/di";
+
+import { InjectionToken, Lifetime, Container } from "@decorify/di";
 ```
 
 ## License

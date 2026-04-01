@@ -1,15 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { Application } from "./application.js";
-import { container } from "@decorify/di";
+import { Container } from "@decorify/di";
 import { Controller } from "./http/decorators.js";
 import { Injectable } from "@decorify/di";
 
 describe("Application", () => {
+  let container: Container;
   let mockAdapter: any;
   let app: Application;
 
   beforeEach(() => {
-    container.clear();
+    container = new Container();
     mockAdapter = {
       registerRoute: vi.fn(),
       listen: vi.fn().mockResolvedValue(undefined),

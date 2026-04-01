@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "prepare": "husky",
     "preinstall": "npx only-allow pnpm",
     "build": "pnpm -r --filter='./packages/*' build",
     "test": "vitest run",
@@ -16,10 +17,14 @@
   },
   "packageManager": "pnpm@10.26.2",
   "devDependencies": {
+    "@decorify/core": "workspace:*",
+    "@decorify/di": "workspace:*",
+    "@decorify/express-adapter": "workspace:*",
     "@swc/core": "^1.15.21",
     "@types/express": "^5.0.6",
     "@types/node": "^25.3.3",
     "@vitest/coverage-v8": "^4.1.2",
+    "husky": "^9.1.7",
     "prettier": "^3.8.1",
     "typescript": "^5.9.3",
     "unplugin-swc": "^1.5.9",
