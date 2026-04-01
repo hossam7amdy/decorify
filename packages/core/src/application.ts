@@ -1,10 +1,11 @@
 import type { HttpAdapter } from "./adapters/http-adapter.js";
-import type { Constructor } from "@decorify/di";
+import { Container, type Constructor } from "@decorify/di";
 import type { MiddlewareHandler, Guard, ExceptionFilter } from "./types.js";
 import { LifecycleManager } from "./lifecycle/manager.js";
 import { registerControllers } from "./router.js";
 
 export class Application {
+  private container = new Container();
   private lifecycle = new LifecycleManager();
   private controllers: Constructor[] = [];
   private globalMiddleware: MiddlewareHandler[] = [];
@@ -35,11 +36,17 @@ export class Application {
 
   async listen(port: number, callback?: () => void): Promise<void> {
     // Register all controllers and build route pipelines
-    registerControllers(this.adapter, this.controllers, this.lifecycle, {
-      globalMiddleware: this.globalMiddleware,
-      globalGuards: this.globalGuards,
-      globalFilters: this.globalFilters,
-    });
+    registerControllers(
+      this.container,
+      this.adapter,
+      this.controllers,
+      this.lifecycle,
+      {
+        globalMiddleware: this.globalMiddleware,
+        globalGuards: this.globalGuards,
+        globalFilters: this.globalFilters,
+      },
+    );
 
     // Call onInit() on all tracked instances
     await this.lifecycle.callOnInit();

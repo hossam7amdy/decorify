@@ -1,4 +1,4 @@
-import { Injectable } from "decorify";
+import { Injectable } from "@decorify/core";
 import type { User } from "./user.interface.js";
 
 @Injectable()

@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import type { Token, Scope } from "./types.js";
+import type { Token } from "./types.js";
+import type { Lifetime } from "./lifetime.js";
 
 export interface Resolver {
   resolveSync<T>(token: Token<T>): T;
@@ -9,8 +10,8 @@ export interface InjectionContext {
   container: Resolver;
   /** Tracks the resolution chain to detect circular deps */
   resolutionStack: Token[];
-  /** Tracks scope chain to detect captive dependencies */
-  lifetimeStack: { token: Token; scope: Scope }[];
+  /** Tracks lifetime chain to detect captive dependencies */
+  lifetimeStack: { token: Token; lifetime: Lifetime }[];
 }
 
 export const injectionContext = new AsyncLocalStorage<InjectionContext>();

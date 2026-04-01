@@ -8,6 +8,15 @@ importers:
 
   .:
     devDependencies:
+      '@decorify/core':
+        specifier: workspace:*
+        version: link:packages/core
+      '@decorify/di':
+        specifier: workspace:*
+        version: link:packages/di
+      '@decorify/express-adapter':
+        specifier: workspace:*
+        version: link:packages/express-adapter
       '@swc/core':
         specifier: ^1.15.21
         version: 1.15.21

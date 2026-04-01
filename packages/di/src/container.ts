@@ -1,25 +1,19 @@
-import type {
-  ClassProvider,
-  Constructor,
-  NormalizedProvider,
-  Provider,
-  Token,
-} from "./types.js";
-import { Scope } from "./types.js";
+import type { ClassProvider, Constructor, Provider, Token } from "./types.js";
 import { DI_INJECTABLE, DI_SCOPE } from "./metadata.js";
 import { injectionContext } from "./context.js";
 import type { Resolver } from "./context.js";
 import { tokenName } from "./utils.js";
+import { Lifetime } from "./lifetime.js";
 
-const SCOPE_RANK: Record<Scope, number> = {
+const SCOPE_RANK: Record<Lifetime, number> = {
   singleton: 0,
   scoped: 1,
   transient: 2,
 };
 
 interface ResolvedEntry<T = any> {
-  provider: NormalizedProvider<T>;
-  scope: Scope;
+  provider: Provider<T>;
+  lifetime: Lifetime;
 }
 
 export class Container implements Resolver {
@@ -29,21 +23,25 @@ export class Container implements Resolver {
   private isScoped = false;
 
   register<T>(provider: Provider<T>, opts?: { override?: boolean }): void {
-    const normalized = this.normalizeProvider(provider);
-    const token = normalized.provide;
+    if (typeof provider === "function") {
+      provider = {
+        provide: provider,
+        useClass: provider,
+      };
+    }
 
-    if (typeof provider !== "function") {
-      const hasStrategy =
-        "useClass" in normalized ||
-        "useValue" in normalized ||
-        "useFactory" in normalized ||
-        "useExisting" in normalized;
-      if (!hasStrategy) {
-        throw new Error(
-          `[DI] Provider for "${tokenName(token)}" is missing a strategy. ` +
-            `Specify one of: useClass, useValue, useFactory, or useExisting.`,
-        );
-      }
+    const token = provider.provide;
+
+    const hasStrategy =
+      "useClass" in provider ||
+      "useValue" in provider ||
+      "useFactory" in provider ||
+      "useExisting" in provider;
+    if (!hasStrategy) {
+      throw new Error(
+        `[DI] Provider for "${tokenName(token)}" is missing a strategy. ` +
+          `Specify one of: useClass, useValue, useFactory, or useExisting.`,
+      );
     }
 
     if (this.registry.has(token) && !opts?.override) {
@@ -52,9 +50,8 @@ export class Container implements Resolver {
       );
     }
 
-    const scope =
-      normalized.scope ?? this.inferScope(normalized) ?? Scope.Singleton;
-    this.registry.set(token, { provider: normalized, scope });
+    const lifetime = this.inferLifetime(provider) ?? Lifetime.SINGLETON;
+    this.registry.set(token, { provider: provider, lifetime });
   }
 
   registerMany(providers: Provider[]): void {
@@ -91,13 +88,13 @@ export class Container implements Resolver {
       );
     }
 
-    const scope = entry.scope;
+    const lifetime = entry.lifetime;
 
-    if (scope === Scope.Singleton && this.parent) {
+    if (lifetime === Lifetime.SINGLETON && this.parent) {
       return this.parent.resolveSync(token);
     }
 
-    if (scope === Scope.Scoped && !this.isScoped) {
+    if (lifetime === Lifetime.SCOPED && !this.isScoped) {
       throw new Error(
         `[DI] Cannot resolve scoped token "${tokenName(token)}" from root container. Use createScope().`,
       );
@@ -127,18 +124,18 @@ export class Container implements Resolver {
     const ltStack = ctx.lifetimeStack;
     if (ltStack.length > 0) {
       const parent = ltStack[ltStack.length - 1]!;
-      if (SCOPE_RANK[parent.scope] < SCOPE_RANK[scope]) {
+      if (SCOPE_RANK[parent.lifetime] < SCOPE_RANK[lifetime]) {
         throw new Error(
-          `[DI] Captive dependency detected: ${parent.scope} "${tokenName(parent.token)}" depends on ${scope} "${tokenName(token)}". A longer-lived service must not capture a shorter-lived one.`,
+          `[DI] Captive dependency detected: ${parent.lifetime} "${tokenName(parent.token)}" depends on ${lifetime} "${tokenName(token)}". A longer-lived service must not capture a shorter-lived one.`,
         );
       }
     }
 
     ctx.resolutionStack.push(token);
-    ltStack.push({ token, scope });
+    ltStack.push({ token, lifetime });
     try {
       const instance = this.createInstance(entry);
-      if (scope !== Scope.Transient) {
+      if (lifetime !== Lifetime.TRANSIENT) {
         this.instances.set(token, instance);
       }
       return instance as T;
@@ -180,22 +177,16 @@ export class Container implements Resolver {
     return this.registry.get(token) ?? this.parent?.lookup(token);
   }
 
-  private normalizeProvider<T>(
-    provider: Provider<T>,
-  ): NormalizedProvider<T> & { provide: Token<T> } {
+  private inferLifetime(provider: Provider): Lifetime | undefined {
     if (typeof provider === "function") {
-      return {
-        provide: provider as Token<T>,
-        useClass: provider,
-      } as ClassProvider<T> & { provide: Token<T> };
+      return (provider as any)[Symbol.metadata]?.[DI_SCOPE];
     }
-    return provider as NormalizedProvider<T> & { provide: Token<T> };
-  }
-
-  private inferScope(provider: NormalizedProvider): Scope | undefined {
-    const ctor = "useClass" in provider ? provider.useClass : null;
-    if (ctor && (ctor as any)[Symbol.metadata]?.[DI_SCOPE]) {
-      return (ctor as any)[Symbol.metadata][DI_SCOPE] as Scope;
+    if ("useClass" in provider) {
+      const ctor = provider.useClass ?? {};
+      return provider.lifetime ?? (ctor as any)[Symbol.metadata]?.[DI_SCOPE];
+    }
+    if ("useFactory" in provider) {
+      return provider.lifetime;
     }
     return undefined;
   }

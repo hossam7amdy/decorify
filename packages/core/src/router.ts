@@ -10,7 +10,7 @@ import type { ControllerMetadata } from "./http/metadata.js";
 import type { Constructor } from "@decorify/di";
 import { ForbiddenException } from "./errors/http-exception.js";
 import { DefaultExceptionFilter } from "./errors/exception-filter.js";
-import { container } from "@decorify/di";
+import { Container } from "@decorify/di";
 import { LifecycleManager } from "./lifecycle/manager.js";
 
 export interface RouterOptions {
@@ -20,6 +20,7 @@ export interface RouterOptions {
 }
 
 export function registerControllers(
+  container: Container,
   adapter: HttpAdapter,
   controllers: Constructor[],
   lifecycle: LifecycleManager,

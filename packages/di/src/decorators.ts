@@ -1,8 +1,8 @@
-import type { Token, Scope } from "./types.js";
-import { DI_INJECTABLE, DI_INJECT_TOKENS, DI_SCOPE } from "./metadata.js";
-import { inject } from "./context.js";
-
 export { inject } from "./context.js";
+import { inject } from "./context.js";
+import { DI_INJECTABLE, DI_INJECT_TOKENS, DI_SCOPE } from "./metadata.js";
+import type { Token } from "./types.js";
+import type { Lifetime } from "./lifetime.js";
 
 /**
  * Marks a class as injectable. Required for the container to instantiate it.
@@ -12,15 +12,15 @@ export { inject } from "./context.js";
  * @Injectable()
  * class UserService { ... }
  *
- * @Injectable({ scope: Scope.Transient })
+ * @Injectable({ lifetime: Lifetime.TRANSIENT })
  * class RequestLogger { ... }
  *
  */
-export function Injectable(opts?: { scope?: Scope }) {
+export function Injectable(opts?: { lifetime?: Lifetime }) {
   return function (_target: any, context: ClassDecoratorContext) {
-    (context.metadata[DI_INJECTABLE] as boolean) = true;
-    if (opts?.scope) {
-      (context.metadata[DI_SCOPE] as Scope) = opts.scope;
+    context.metadata[DI_INJECTABLE] = true;
+    if (opts?.lifetime) {
+      context.metadata[DI_SCOPE] = opts.lifetime;
     }
   };
 }
@@ -43,8 +43,7 @@ export function Inject<T>(token: Token<T>) {
       Token
     >;
     existing[context.name] = token;
-    (context.metadata[DI_INJECT_TOKENS] as Record<string | symbol, Token>) =
-      existing;
+    context.metadata[DI_INJECT_TOKENS] = existing;
 
     // Return an initializer that resolves from the current injection context
     return function (this: any) {

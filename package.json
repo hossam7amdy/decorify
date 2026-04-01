@@ -16,6 +16,9 @@
   },
   "packageManager": "pnpm@10.26.2",
   "devDependencies": {
+    "@decorify/di": "workspace:*",
+    "@decorify/core": "workspace:*",
+    "@decorify/express-adapter": "workspace:*",
     "@swc/core": "^1.15.21",
     "@types/express": "^5.0.6",
     "@types/node": "^25.3.3",

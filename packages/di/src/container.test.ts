@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { Container } from "./container.js";
-import { InjectionToken, Scope } from "./types.js";
+import { InjectionToken } from "./injection-token.js";
+import { Lifetime } from "./lifetime.js";
 import { inject } from "./context.js";
 
 describe("DI Container", () => {
@@ -104,9 +105,7 @@ describe("DI Container", () => {
 
     it("should throw for provider missing a strategy", () => {
       const TOKEN = new InjectionToken("bad");
-      expect(() =>
-        container.register({ provide: TOKEN } as any),
-      ).toThrow(
+      expect(() => container.register({ provide: TOKEN } as any)).toThrow(
         '[DI] Provider for "InjectionToken(bad)" is missing a strategy',
       );
     });
@@ -126,7 +125,9 @@ describe("DI Container", () => {
       class B {}
       container.register(B); // pre-register B to cause duplicate error
 
-      expect(() => container.registerMany([A, B])).toThrow("is already registered");
+      expect(() => container.registerMany([A, B])).toThrow(
+        "is already registered",
+      );
       // A was registered before B threw
       expect(container.has(A)).toBe(true);
     });
@@ -287,7 +288,7 @@ describe("DI Container", () => {
       container.register({
         provide: MyService,
         useClass: MyService,
-        scope: Scope.Transient,
+        lifetime: Lifetime.TRANSIENT,
       });
       const a = container.resolve(MyService);
       const b = container.resolve(MyService);
@@ -300,7 +301,7 @@ describe("DI Container", () => {
       container.register({
         provide: MyService,
         useClass: MyService,
-        scope: Scope.Scoped,
+        lifetime: Lifetime.SCOPED,
       });
       expect(() => container.resolve(MyService)).toThrow(
         'Cannot resolve scoped token "MyService" from root container. Use createScope().',
@@ -312,7 +313,7 @@ describe("DI Container", () => {
       container.register({
         provide: MyService,
         useClass: MyService,
-        scope: Scope.Scoped,
+        lifetime: Lifetime.SCOPED,
       });
       const scope = container.createScope();
       const a = scope.resolve(MyService);
@@ -325,7 +326,7 @@ describe("DI Container", () => {
       container.register({
         provide: MyService,
         useClass: MyService,
-        scope: Scope.Scoped,
+        lifetime: Lifetime.SCOPED,
       });
       const scope1 = container.createScope();
       const scope2 = container.createScope();
@@ -345,7 +346,7 @@ describe("DI Container", () => {
       container.register({
         provide: MyService,
         useClass: MyService,
-        scope: Scope.Transient,
+        lifetime: Lifetime.TRANSIENT,
       });
       const scope = container.createScope();
       const a = scope.resolve(MyService);
@@ -357,13 +358,17 @@ describe("DI Container", () => {
       const TOKEN = new InjectionToken<string>("greeting");
       container.register({
         provide: TOKEN,
-        useValue: "root",
-        scope: Scope.Scoped,
+        useFactory: () => "root",
+        lifetime: Lifetime.SCOPED,
       });
 
       const scope = container.createScope();
       scope.register(
-        { provide: TOKEN, useValue: "child", scope: Scope.Scoped },
+        {
+          provide: TOKEN,
+          useFactory: () => "child",
+          lifetime: Lifetime.SCOPED,
+        },
         { override: true },
       );
 
@@ -380,10 +385,7 @@ describe("DI Container", () => {
       container.register(Base);
 
       const scope = container.createScope();
-      scope.register(
-        { provide: Base, useClass: Override },
-        { override: true },
-      );
+      scope.register({ provide: Base, useClass: Override }, { override: true });
 
       // Singleton always resolves from root — child override is ignored
       expect(scope.resolve(Base).name).toBe("base");
@@ -452,7 +454,7 @@ describe("DI Container", () => {
       container.register({
         provide: token,
         useFactory: factory,
-        scope: Scope.Transient,
+        lifetime: Lifetime.TRANSIENT,
       });
 
       const a = container.resolve(token);
@@ -466,7 +468,7 @@ describe("DI Container", () => {
       container.register({
         provide: token,
         useFactory: () => ({ id: Math.random() }),
-        scope: Scope.Scoped,
+        lifetime: Lifetime.SCOPED,
       });
 
       const scope1 = container.createScope();
@@ -511,9 +513,7 @@ describe("DI Container", () => {
         useFactory: (() => Promise.resolve("value")) as any,
       });
 
-      expect(() => container.resolve(token)).toThrow(
-        "returned a Promise",
-      );
+      expect(() => container.resolve(token)).toThrow("returned a Promise");
     });
   });
 
@@ -619,7 +619,7 @@ describe("DI Container", () => {
       container.register({
         provide: Transient,
         useClass: Transient,
-        scope: Scope.Transient,
+        lifetime: Lifetime.TRANSIENT,
       });
       container.register(Singleton);
 
@@ -637,12 +637,12 @@ describe("DI Container", () => {
       container.register({
         provide: Transient,
         useClass: Transient,
-        scope: Scope.Transient,
+        lifetime: Lifetime.TRANSIENT,
       });
       container.register({
         provide: Scoped,
         useClass: Scoped,
-        scope: Scope.Scoped,
+        lifetime: Lifetime.SCOPED,
       });
 
       const scope = container.createScope();
@@ -656,7 +656,7 @@ describe("DI Container", () => {
       container.register({
         provide: Transient,
         useClass: Transient,
-        scope: Scope.Transient,
+        lifetime: Lifetime.TRANSIENT,
       });
 
       const token = new InjectionToken("singletonFactory");
@@ -694,7 +694,7 @@ describe("DI Container", () => {
       container.register({
         provide: Scoped,
         useClass: Scoped,
-        scope: Scope.Scoped,
+        lifetime: Lifetime.SCOPED,
       });
 
       const scope = container.createScope();
@@ -711,7 +711,7 @@ describe("DI Container", () => {
       container.register({
         provide: Transient,
         useClass: Transient,
-        scope: Scope.Transient,
+        lifetime: Lifetime.TRANSIENT,
       });
 
       expect(() => container.resolve(Transient)).not.toThrow();
@@ -726,12 +726,12 @@ describe("DI Container", () => {
       container.register({
         provide: DepTransient,
         useClass: DepTransient,
-        scope: Scope.Transient,
+        lifetime: Lifetime.TRANSIENT,
       });
       container.register({
         provide: Transient,
         useClass: Transient,
-        scope: Scope.Transient,
+        lifetime: Lifetime.TRANSIENT,
       });
 
       expect(() => container.resolve(Transient)).not.toThrow();

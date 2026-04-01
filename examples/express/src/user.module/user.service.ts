@@ -1,5 +1,5 @@
-import { inject, Injectable } from "decorify";
-import { NotFoundException } from "decorify";
+import { inject, Injectable } from "@decorify/core";
+import { NotFoundException } from "@decorify/core";
 import type { User } from "./user.interface.js";
 import { UserRepository } from "./user.repository.js";
 

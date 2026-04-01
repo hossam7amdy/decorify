@@ -1,5 +1,5 @@
 import type { Token } from "./types.js";
-import { InjectionToken } from "./types.js";
+import { InjectionToken } from "./injection-token.js";
 
 export function tokenName(token: Token): string {
   if (token instanceof InjectionToken)

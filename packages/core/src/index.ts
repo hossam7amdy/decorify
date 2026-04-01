@@ -47,12 +47,6 @@ export {
   LifecycleManager,
 } from "./lifecycle/index.js";
 
-// Re-export everything from @decorify/di so users can import from one place
-export { container, Container, Injectable, inject, Inject } from "@decorify/di";
-export type {
-  Constructor,
-  AbstractConstructor,
-  Token,
-  Lifetime,
-  Provider,
-} from "@decorify/di";
+// Re-export DI utilities
+export { Container, Injectable, inject, Inject, Lifetime } from "@decorify/di";
+export type { Constructor, Token, Provider } from "@decorify/di";
