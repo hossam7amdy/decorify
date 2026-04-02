@@ -22,17 +22,17 @@ function processModule(
   const meta = readModuleMetadata(moduleClass);
   const controllers: Constructor[] = [];
 
-  // Process imports first (depth-first)
-  for (const imported of meta.imports ?? []) {
-    controllers.push(...processModule(container, imported, processed));
-  }
-
-  // Register providers (skip duplicates)
+  // Register providers first to allow parent modules to override child providers
   for (const provider of meta.providers ?? []) {
     const token = extractToken(provider);
     if (!container.has(token)) {
       container.register(provider);
     }
+  }
+
+  // Process imports (depth-first)
+  for (const imported of meta.imports ?? []) {
+    controllers.push(...processModule(container, imported, processed));
   }
 
   // Collect controllers
