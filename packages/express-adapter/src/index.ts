@@ -9,17 +9,17 @@ import type {
 } from "@decorify/core";
 import type { Server } from "node:http";
 
-export class ExpressAdapter implements HttpAdapter {
+export class ExpressAdapter implements HttpAdapter<Application> {
   private app: Application;
   private server: Server | null = null;
 
   constructor(app?: Application) {
-    this.app = app ?? (express() as unknown as Application);
-    this.app.use(express.json() as any);
+    this.app = app ?? express();
+    this.app.use(express.json());
   }
 
   registerRoute(method: string, path: string, handler: RouteHandler): void {
-    (this.app as any)[method](
+    this.app[method as keyof Application](
       path,
       (req: Request, res: Response, next: NextFunction) => {
         const ctx = this.createContext(req, res);
@@ -29,12 +29,12 @@ export class ExpressAdapter implements HttpAdapter {
   }
 
   useMiddleware(handler: MiddlewareHandler): void {
-    this.app.use(((req: Request, res: Response, next: NextFunction) => {
+    this.app.use((req: Request, res: Response, next: NextFunction) => {
       const ctx = this.createContext(req, res);
       Promise.resolve(
         handler(ctx, async () => {
           await new Promise<void>((resolve, reject) => {
-            (next as any)((err?: Error) => {
+            next((err?: Error) => {
               if (err) reject(err);
               else resolve();
             });
@@ -43,24 +43,21 @@ export class ExpressAdapter implements HttpAdapter {
           });
         }),
       ).catch(next);
-    }) as any);
+    });
   }
 
   useErrorHandler(handler: ErrorHandler): void {
-    this.app.use(((
-      err: Error,
-      req: Request,
-      res: Response,
-      _next: NextFunction,
-    ) => {
-      const ctx = this.createContext(req, res);
-      handler(err, ctx);
-    }) as any);
+    this.app.use(
+      (err: Error, req: Request, res: Response, _next: NextFunction) => {
+        const ctx = this.createContext(req, res);
+        handler(err, ctx);
+      },
+    );
   }
 
   async listen(port: number, callback?: () => void): Promise<void> {
     return new Promise((resolve) => {
-      this.server = (this.app as any).listen(port, () => {
+      this.server = this.app.listen(port, () => {
         callback?.();
         resolve();
       });

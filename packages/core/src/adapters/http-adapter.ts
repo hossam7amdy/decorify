@@ -4,7 +4,7 @@ import type {
   MiddlewareHandler,
 } from "../types.js";
 
-export interface HttpAdapter {
+export interface HttpAdapter<Adapter = any> {
   /** Register a route handler with the underlying framework */
   registerRoute(method: string, path: string, handler: RouteHandler): void;
 
@@ -20,6 +20,6 @@ export interface HttpAdapter {
   /** Graceful shutdown */
   close(): Promise<void>;
 
-  /** Get the underlying framework instance (escape hatch) */
-  getInstance(): unknown;
+  /** Get the underlying framework instance */
+  getInstance(): Adapter;
 }

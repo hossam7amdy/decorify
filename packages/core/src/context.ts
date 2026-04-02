@@ -1,4 +1,4 @@
-export interface HttpContext {
+export interface HttpContext<Context = any> {
   /** HTTP method (lowercase) */
   readonly method: string;
   /** Request path */
@@ -13,14 +13,14 @@ export interface HttpContext {
   readonly body: unknown;
 
   /** Set response status code */
-  status(code: number): HttpContext;
+  status(code: number): HttpContext<Context>;
   /** Send JSON response */
   json(data: unknown): void;
   /** Send text/html response */
   send(data: string | Buffer): void;
   /** Set a response header */
-  setHeader(name: string, value: string): HttpContext;
+  setHeader(name: string, value: string): HttpContext<Context>;
 
-  /** Access to raw framework-specific objects (escape hatch) */
-  readonly raw: { req: unknown; res: unknown };
+  /** Access to raw framework-specific context */
+  readonly raw: Context;
 }
