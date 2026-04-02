@@ -15,7 +15,7 @@ export { Lifetime } from "./lifetime.js";
 
 export { InjectionToken } from "./injection-token.js";
 
-export { DI_INJECTABLE, DI_INJECT_TOKENS, DI_SCOPE } from "./metadata.js";
+export { DI_INJECTABLE, DI_INJECT_TOKENS, DI_LIFETIME } from "./metadata.js";
 
 export { inject, injectionContext as _injectionContext } from "./context.js";
 

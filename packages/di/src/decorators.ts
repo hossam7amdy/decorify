@@ -1,6 +1,6 @@
 export { inject } from "./context.js";
 import { inject } from "./context.js";
-import { DI_INJECTABLE, DI_INJECT_TOKENS, DI_SCOPE } from "./metadata.js";
+import { DI_INJECTABLE, DI_INJECT_TOKENS, DI_LIFETIME } from "./metadata.js";
 import type { Token } from "./types.js";
 import type { Lifetime } from "./lifetime.js";
 
@@ -20,7 +20,7 @@ export function Injectable(opts?: { lifetime?: Lifetime }) {
   return function (_target: any, context: ClassDecoratorContext) {
     context.metadata[DI_INJECTABLE] = true;
     if (opts?.lifetime) {
-      context.metadata[DI_SCOPE] = opts.lifetime;
+      context.metadata[DI_LIFETIME] = opts.lifetime;
     }
   };
 }

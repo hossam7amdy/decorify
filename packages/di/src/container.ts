@@ -6,7 +6,7 @@ import type {
   Provider,
   Token,
 } from "./types.js";
-import { DI_INJECTABLE, DI_SCOPE } from "./metadata.js";
+import { DI_INJECTABLE, DI_LIFETIME } from "./metadata.js";
 import { injectionContext } from "./context.js";
 import type { Resolver } from "./context.js";
 import { tokenName } from "./utils.js";
@@ -265,11 +265,11 @@ export class Container implements Resolver, Disposable, AsyncDisposable {
 
   private inferLifetime(provider: Provider): Lifetime | undefined {
     if (typeof provider === "function") {
-      return (provider as any)[Symbol.metadata]?.[DI_SCOPE];
+      return (provider as any)[Symbol.metadata]?.[DI_LIFETIME];
     }
     if ("useClass" in provider) {
       const ctor = provider.useClass ?? {};
-      return provider.lifetime ?? (ctor as any)[Symbol.metadata]?.[DI_SCOPE];
+      return provider.lifetime ?? (ctor as any)[Symbol.metadata]?.[DI_LIFETIME];
     }
     if ("useFactory" in provider) {
       return provider.lifetime;
