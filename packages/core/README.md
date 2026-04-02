@@ -19,26 +19,20 @@ import { Application } from "@decorify/core";
 import { ExpressAdapter } from "@decorify/express-adapter";
 import { UserController } from "./user.controller.js";
 
-const app = new Application(new ExpressAdapter());
-
-app.register([UserController]);
+const app = await Application.create([UserController], new ExpressAdapter());
 
 await app.listen(3000, () => console.log("Listening on port 3000"));
 ```
 
 ## Application
 
-### `new Application(adapter)`
+### `Application.create(controllers, adapter)`
 
-Creates an application instance wrapping an `HttpAdapter`.
+Static async factory. Registers all controllers and builds route pipelines, then returns the `Application` instance.
 
 ```ts
-const app = new Application(adapter);
+const app = await Application.create([UserController], adapter);
 ```
-
-### `app.register(controllers)`
-
-Register one or more controller classes. Returns `this` for chaining.
 
 ### `app.useMiddleware(...handlers)`
 
@@ -54,7 +48,7 @@ Add global exception filters. They run after method- and class-level filters.
 
 ### `app.listen(port, callback?)`
 
-Registers all controllers, calls `onInit()` on lifecycle-aware instances, then starts the server.
+Calls `onInit()` on lifecycle-aware instances, then starts the server.
 
 ### `app.close()`
 
@@ -256,7 +250,7 @@ export class DatabaseService implements OnInit, OnDestroy {
 }
 ```
 
-- `onInit()` — called after `app.register()`, before `listen()` starts accepting requests
+- `onInit()` — called before `listen()` starts accepting requests
 - `onDestroy()` — called when `app.close()` is invoked; runs in reverse registration order
 
 ## HttpContext API

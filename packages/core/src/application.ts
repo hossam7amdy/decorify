@@ -12,11 +12,31 @@ export class Application {
   private globalGuards: Guard[] = [];
   private globalFilters: ExceptionFilter[] = [];
 
-  constructor(private adapter: HttpAdapter) {}
+  protected constructor(private adapter: HttpAdapter) {}
 
-  register(controllers: Constructor[]): this {
-    this.controllers.push(...controllers);
-    return this;
+  static async create(
+    controllers: Constructor[],
+    adapter: HttpAdapter,
+  ): Promise<Application> {
+    const app = new Application(adapter);
+
+    // Defensive copy to avoid external mutations
+    app.controllers = [...controllers];
+
+    // Register all controllers and build route pipelines
+    registerControllers(
+      app.container,
+      app.adapter,
+      app.controllers,
+      app.lifecycle,
+      {
+        globalMiddleware: app.globalMiddleware,
+        globalGuards: app.globalGuards,
+        globalFilters: app.globalFilters,
+      },
+    );
+
+    return app;
   }
 
   useMiddleware(...handlers: MiddlewareHandler[]): this {
@@ -35,23 +55,8 @@ export class Application {
   }
 
   async listen(port: number, callback?: () => void): Promise<void> {
-    // Register all controllers and build route pipelines
-    registerControllers(
-      this.container,
-      this.adapter,
-      this.controllers,
-      this.lifecycle,
-      {
-        globalMiddleware: this.globalMiddleware,
-        globalGuards: this.globalGuards,
-        globalFilters: this.globalFilters,
-      },
-    );
-
-    // Call onInit() on all tracked instances
     await this.lifecycle.callOnInit();
 
-    // Start listening
     await this.adapter.listen(port, callback);
   }
 

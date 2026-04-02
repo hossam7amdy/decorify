@@ -55,7 +55,7 @@ decorify/
 │   │   ├── lifecycle/        ← OnInit/OnDestroy interfaces, LifecycleManager
 │   │   ├── adapters/         ← HttpAdapter interface
 │   │   ├── router.ts         ← registerControllers(), buildPipeline()
-│   │   ├── application.ts    ← Application class
+│   │   ├── application.ts    ← Application class (static async create() factory, private constructor)
 │   │   └── index.ts          ← re-exports everything including @decorify/di
 │   └── express-adapter/src/
 │       └── index.ts          ← ExpressAdapter implements HttpAdapter
