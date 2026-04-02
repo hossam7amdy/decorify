@@ -1,12 +1,9 @@
 import { Application } from "@decorify/core";
 import { ExpressAdapter } from "@decorify/express-adapter";
-import { UserController } from "./user.module/user.controller.js";
+import { AppModule } from "./app.module.js";
 
 async function bootstrap() {
-  const expressApp = new ExpressAdapter();
-  const app = new Application(expressApp);
-
-  app.register([UserController]);
+  const app = await Application.create(AppModule, new ExpressAdapter());
 
   const PORT = Number(process.env.PORT) || 3000;
   await app.listen(PORT, () => {

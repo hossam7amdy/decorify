@@ -3,6 +3,7 @@ import { Container, type Constructor } from "@decorify/di";
 import type { MiddlewareHandler, Guard, ExceptionFilter } from "./types.js";
 import { LifecycleManager } from "./lifecycle/manager.js";
 import { registerControllers } from "./router.js";
+import { processModules } from "./module/processor.js";
 
 export class Application {
   private container = new Container();
@@ -12,11 +13,15 @@ export class Application {
   private globalGuards: Guard[] = [];
   private globalFilters: ExceptionFilter[] = [];
 
-  constructor(private adapter: HttpAdapter) {}
+  private constructor(private adapter: HttpAdapter) {}
 
-  register(controllers: Constructor[]): this {
-    this.controllers.push(...controllers);
-    return this;
+  static async create(
+    rootModule: Constructor,
+    adapter: HttpAdapter,
+  ): Promise<Application> {
+    const app = new Application(adapter);
+    app.controllers = processModules(app.container, rootModule);
+    return app;
   }
 
   useMiddleware(...handlers: MiddlewareHandler[]): this {
@@ -35,7 +40,6 @@ export class Application {
   }
 
   async listen(port: number, callback?: () => void): Promise<void> {
-    // Register all controllers and build route pipelines
     registerControllers(
       this.container,
       this.adapter,
@@ -48,10 +52,7 @@ export class Application {
       },
     );
 
-    // Call onInit() on all tracked instances
     await this.lifecycle.callOnInit();
-
-    // Start listening
     await this.adapter.listen(port, callback);
   }
 
@@ -60,7 +61,6 @@ export class Application {
     await this.adapter.close();
   }
 
-  /** Access the underlying HTTP framework instance (escape hatch) */
   getAdapter(): HttpAdapter {
     return this.adapter;
   }

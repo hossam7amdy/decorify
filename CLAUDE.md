@@ -54,8 +54,9 @@ decorify/
 │   │   ├── errors/           ← HttpException subclasses, DefaultExceptionFilter
 │   │   ├── lifecycle/        ← OnInit/OnDestroy interfaces, LifecycleManager
 │   │   ├── adapters/         ← HttpAdapter interface
+│   │   ├── module/           ← @Module decorator, ModuleMetadata, processModules()
 │   │   ├── router.ts         ← registerControllers(), buildPipeline()
-│   │   ├── application.ts    ← Application class
+│   │   ├── application.ts    ← Application class (private ctor, static async create())
 │   │   └── index.ts          ← re-exports everything including @decorify/di
 │   └── express-adapter/src/
 │       └── index.ts          ← ExpressAdapter implements HttpAdapter
@@ -64,6 +65,22 @@ decorify/
 ### Decorator Metadata System
 
 All decorators use the **Stage 3 `Symbol.metadata`** API. A polyfill in `packages/di/src/symbol-metadata-polyfill.ts` ensures `Symbol.metadata` exists at runtime. It is imported as a side-effect from `@decorify/di`'s entry point. Tests load it via vitest `setupFiles`.
+
+### Module System (`packages/core/src/module/`)
+
+`@Module({ imports, controllers, providers, exports })` groups related controllers and providers. The `Application.create(rootModule, adapter)` static async factory processes the module tree before the app starts.
+
+**Processing** (`processModules` in `processor.ts`): depth-first traversal with a `Set<Constructor>` to safely handle diamond imports (each module processed once) and circular imports (no infinite loop). Providers are registered into the application's single `Container`; duplicates are skipped via `container.has()`. Controllers collected from all modules are passed to `registerControllers()`.
+
+**Bootstrap pattern:**
+
+```ts
+@Module({ imports: [UserModule, OrderModule] })
+class AppModule {}
+
+const app = await Application.create(AppModule, new ExpressAdapter());
+await app.listen(3000);
+```
 
 ### Request Pipeline (`packages/core/src/router.ts`)
 

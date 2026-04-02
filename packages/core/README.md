@@ -15,30 +15,56 @@ pnpm add @decorify/core
 ## Quick Start
 
 ```ts
-import { Application } from "@decorify/core";
+import { Application, Module } from "@decorify/core";
 import { ExpressAdapter } from "@decorify/express-adapter";
 import { UserController } from "./user.controller.js";
+import { UserService } from "./user.service.js";
 
-const app = new Application(new ExpressAdapter());
+@Module({
+  controllers: [UserController],
+  providers: [UserService],
+})
+class AppModule {}
 
-app.register([UserController]);
+const app = await Application.create(AppModule, new ExpressAdapter());
 
 await app.listen(3000, () => console.log("Listening on port 3000"));
 ```
 
-## Application
+## Modules
 
-### `new Application(adapter)`
-
-Creates an application instance wrapping an `HttpAdapter`.
+`@Module` groups controllers and providers into a cohesive unit. The root module (and any imported sub-modules) is the single entry point for application structure.
 
 ```ts
-const app = new Application(adapter);
+import { Module } from "@decorify/core";
+
+@Module({
+  imports: [SharedModule], // imported module's exports become available here
+  controllers: [OrderController],
+  providers: [OrderService],
+  exports: [OrderService], // make OrderService available to importing modules
+})
+class OrderModule {}
 ```
 
-### `app.register(controllers)`
+| Field         | Type            | Description                                   |
+| ------------- | --------------- | --------------------------------------------- |
+| `controllers` | `Constructor[]` | Controller classes owned by this module       |
+| `providers`   | `Provider[]`    | DI providers registered for this module       |
+| `imports`     | `Constructor[]` | Other modules this module depends on          |
+| `exports`     | `Provider[]`    | Providers made available to importing modules |
 
-Register one or more controller classes. Returns `this` for chaining.
+Module processing is depth-first. Diamond and circular imports are handled safely — each module is processed exactly once.
+
+## Application
+
+### `Application.create(rootModule, adapter)`
+
+Async factory that processes the module tree and returns an `Application` instance. The constructor is private; this is the only way to create an application.
+
+```ts
+const app = await Application.create(AppModule, new ExpressAdapter());
+```
 
 ### `app.useMiddleware(...handlers)`
 
@@ -256,7 +282,7 @@ export class DatabaseService implements OnInit, OnDestroy {
 }
 ```
 
-- `onInit()` — called after `app.register()`, before `listen()` starts accepting requests
+- `onInit()` — called after module processing, before `listen()` starts accepting requests
 - `onDestroy()` — called when `app.close()` is invoked; runs in reverse registration order
 
 ## HttpContext API

@@ -5,6 +5,10 @@ export { Application } from "./application.js";
 export type { HttpContext } from "./context.js";
 export type { HttpAdapter } from "./adapters/http-adapter.js";
 
+// Module
+export { Module } from "./module/index.js";
+export type { ModuleMetadata } from "./module/index.js";
+
 // HTTP types
 export type {
   RouteHandler,
