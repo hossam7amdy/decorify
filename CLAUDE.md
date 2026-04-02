@@ -41,7 +41,7 @@ decorify/
 │   │   ├── types.ts          ← DI types: Constructor, Token, Provider, ClassProvider, ValueProvider, FactoryProvider, ExistingProvider
 │   │   ├── lifetime.ts       ← Lifetime enum (SINGLETON, TRANSIENT, SCOPED)
 │   │   ├── injection-token.ts ← InjectionToken class
-│   │   ├── metadata.ts       ← DI metadata keys (DI_INJECTABLE, DI_INJECT_TOKENS, DI_SCOPE)
+│   │   ├── metadata.ts       ← DI metadata keys (DI_INJECTABLE, DI_INJECT_TOKENS, DI_LIFETIME)
 │   │   ├── context.ts        ← InjectionContext, injectionContext (AsyncLocalStorage), inject()
 │   │   ├── symbol-metadata-polyfill.ts
 │   │   ├── container.ts      ← Container class

@@ -100,6 +100,21 @@ container.register({
   useFactory: () => new Logger({ level: "info" }),
 });
 
+// Factory provider with injected dependencies
+container.register({
+  provide: LOGGER,
+  useFactory: (config: AppConfig) => new Logger({ level: config.logLevel }),
+  inject: [APP_CONFIG],
+});
+
+// Factory provider with optional dependency
+container.register({
+  provide: LOGGER,
+  useFactory: (config?: AppConfig) =>
+    new Logger({ level: config?.logLevel ?? "info" }),
+  inject: [{ token: APP_CONFIG, optional: true }],
+});
+
 // Alias provider
 container.register({ provide: ALIAS_TOKEN, useExisting: UserService });
 
@@ -163,6 +178,34 @@ container.validate([UserService, UserRepository]);
 ### `container.clear()`
 
 Remove all instances and registrations. Primarily useful in tests.
+
+### `container.dispose()`
+
+Synchronously disposes the container. Calls `[Symbol.dispose]()` on all tracked instances in reverse registration order. Marks the container as disposed — further `register()` and `resolve()` calls will throw.
+
+```ts
+container.dispose();
+// or use the explicit resource management syntax:
+using container = new Container();
+```
+
+### `container.disposeAsync()`
+
+Async variant of `dispose()`. Prefers `[Symbol.asyncDispose]()` over `[Symbol.dispose]()` when both are available.
+
+```ts
+await container.disposeAsync();
+// or use the explicit resource management syntax:
+await using container = new Container();
+```
+
+### `container.isInInjectionContext`
+
+Returns `true` if called during an active `container.resolve()` call (i.e., inside a constructor, field initializer, or factory).
+
+```ts
+container.isInInjectionContext; // false outside resolve
+```
 
 ## `InjectionToken`
 

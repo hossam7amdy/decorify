@@ -183,7 +183,7 @@ class UserController {
 }
 ```
 
-Guards run after middleware and before the route handler.
+Guards run before middleware and the route handler.
 
 ## Exception Filters
 
@@ -325,15 +325,10 @@ import {
   Injectable,
   inject,
   Inject,
-  container,
   Container,
-} from "@decorify/core";
-import type {
-  Token,
   Lifetime,
-  Constructor,
-  AsyncInitializable,
 } from "@decorify/core";
+import type { Token, Constructor } from "@decorify/core";
 ```
 
 See the [`@decorify/di` README](../di/README.md) for full DI documentation.
