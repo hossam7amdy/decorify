@@ -42,6 +42,11 @@ function processModule(
 }
 
 function readModuleMetadata(moduleClass: Constructor): ModuleMetadata {
+  if (!moduleClass) {
+    throw new Error(
+      "Module dependency is undefined. This is likely caused by a circular import.",
+    );
+  }
   const meta = (moduleClass as any)[Symbol.metadata];
   if (!meta?.[IS_MODULE]) {
     throw new Error(
