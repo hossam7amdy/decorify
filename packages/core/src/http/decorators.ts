@@ -1,3 +1,4 @@
+import { DI_INJECTABLE, DI_LIFETIME, Lifetime } from "@decorify/di";
 import type { RouteMetadata } from "./metadata.js";
 
 function createRouteDecorator(httpMethod: string) {
@@ -31,5 +32,7 @@ export function Controller(basePath = "") {
       throw new Error("@Controller can only be used on classes.");
     }
     context.metadata.basePath = basePath;
+    context.metadata[DI_INJECTABLE] = true;
+    context.metadata[DI_LIFETIME] = Lifetime.SINGLETON;
   };
 }

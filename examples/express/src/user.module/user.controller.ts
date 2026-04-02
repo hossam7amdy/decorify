@@ -1,9 +1,8 @@
 import type { HttpContext } from "@decorify/core";
 import { Controller, Get, Post } from "@decorify/core";
-import { Injectable, inject } from "@decorify/core";
+import { inject } from "@decorify/core";
 import { UserService } from "./user.service.js";
 
-@Injectable()
 @Controller("/users")
 export class UserController {
   private userService = inject(UserService);
