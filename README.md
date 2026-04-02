@@ -14,6 +14,7 @@ A framework-agnostic micro-framework for building production-ready HTTP backends
 
 - **Stage 3 ES Decorators** — uses the TC39 standard, not legacy TypeScript experimental decorators
 - **Framework-agnostic** — pluggable `HttpAdapter` interface; ships with an Express 5 adapter
+- **Module System** — `@Module` groups controllers and providers; supports imports and exports for composing feature modules
 - **Dependency Injection** — IoC container with unified provider API, `InjectionToken`, lifetimes (singleton/transient/scoped), circular & captive dependency detection, and `AsyncLocalStorage`-based `inject()`
 - **Routing** — `@Controller`, `@Get`, `@Post`, `@Put`, `@Patch`, `@Delete`
 - **Middleware & Guards** — `@UseMiddleware`, `@UseGuard` at class or method level
@@ -38,14 +39,27 @@ pnpm add @decorify/express-adapter express
 ## Quick Start
 
 ```ts
+// user.module.ts
+import { Module } from "@decorify/core";
+import { UserController } from "./user.controller.js";
+import { UserService } from "./user.service.js";
+
+@Module({
+  controllers: [UserController],
+  providers: [UserService],
+  exports: [UserService],
+})
+export class UserModule {}
+
 // main.ts
 import { Application } from "@decorify/core";
 import { ExpressAdapter } from "@decorify/express-adapter";
-import { UserController } from "./user.controller.js";
+import { UserModule } from "./user.module.js";
 
-const app = new Application(new ExpressAdapter());
+@Module({ imports: [UserModule] })
+class AppModule {}
 
-app.register([UserController]);
+const app = await Application.create(AppModule, new ExpressAdapter());
 
 await app.listen(3000, () => {
   console.log("Server listening on port 3000");
@@ -123,6 +137,44 @@ container.register({
 container.register({ provide: LOGGER, useFactory: () => createLogger() });
 container.register({ provide: AliasToken, useExisting: CacheService });
 ```
+
+## Modules
+
+The `@Module` decorator groups related controllers and providers into a cohesive unit. The root module is passed to `Application.create()`.
+
+```ts
+import { Module, Injectable, Controller, Get } from "@decorify/core";
+
+@Injectable()
+class UserService {
+  /* ... */
+}
+
+@Controller("/users")
+class UserController {
+  private svc = inject(UserService);
+  @Get("/") getAll() {
+    return this.svc.findAll();
+  }
+}
+
+@Module({
+  controllers: [UserController],
+  providers: [UserService],
+  exports: [UserService], // make UserService available to importing modules
+})
+class UserModule {}
+
+@Module({ imports: [UserModule] }) // imports gives access to UserModule's exports
+class AppModule {}
+```
+
+| Field         | Type            | Description                                                           |
+| ------------- | --------------- | --------------------------------------------------------------------- |
+| `controllers` | `Constructor[]` | Controller classes owned by this module                               |
+| `providers`   | `Provider[]`    | DI providers (classes, values, factories) registered for this module  |
+| `imports`     | `Constructor[]` | Other modules whose exported providers this module depends on         |
+| `exports`     | `Provider[]`    | Subset of this module's providers made available to importing modules |
 
 ## Middleware & Guards
 
