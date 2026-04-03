@@ -11,9 +11,6 @@ importers:
       '@decorify/core':
         specifier: workspace:*
         version: link:packages/core
-      '@decorify/di':
-        specifier: workspace:*
-        version: link:packages/di
       '@decorify/express-adapter':
         specifier: workspace:*
         version: link:packages/express-adapter
