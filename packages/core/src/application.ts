@@ -1,5 +1,5 @@
 import type { HttpAdapter } from "./adapters/http-adapter.js";
-import { Container, type Constructor } from "@decorify/di";
+import { Container, type Constructor, type Provider } from "@decorify/di";
 import type { MiddlewareHandler, Guard, ExceptionFilter } from "./types.js";
 import { LifecycleManager } from "./lifecycle/manager.js";
 import { registerControllers } from "./router.js";
@@ -37,6 +37,15 @@ export class Application {
     );
 
     return app;
+  }
+
+  resolve<T>(token: Constructor<T>): T {
+    return this.container.resolve(token);
+  }
+
+  register<T>(...providers: Provider<T>[]): this {
+    this.container.registerMany(providers);
+    return this;
   }
 
   useMiddleware(...handlers: MiddlewareHandler[]): this {
