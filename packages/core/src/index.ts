@@ -2,8 +2,16 @@ import "./symbol-metadata-polyfill.js";
 
 // Core
 export { Application } from "./application.js";
-export type { HttpContext } from "./context.js";
-export type { HttpAdapter } from "./adapters/http-adapter.js";
+export type {
+  HttpContext,
+  InjectableContext,
+  ResolvedContext,
+} from "./context.js";
+export type {
+  HttpAdapter,
+  InjectableAdapter,
+  ResolvedAdapter,
+} from "./adapters/http-adapter.js";
 
 // HTTP types
 export type {

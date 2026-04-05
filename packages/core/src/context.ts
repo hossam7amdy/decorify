@@ -1,4 +1,20 @@
-export interface HttpContext<Context = any> {
+/**
+ * Interface for module augmentation.
+ * Implementers can extend this interface to provide strong typing for the underlying raw context.
+ *
+ * @example
+ * declare module '@decorify/core' {
+ *   interface InjectableContext extends Request {}
+ * }
+ */
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+export interface InjectableContext {}
+
+export type ResolvedContext<T = any> = keyof InjectableContext extends never
+  ? T
+  : InjectableContext;
+
+export interface HttpContext<Context = ResolvedContext> {
   /** HTTP method (lowercase) */
   readonly method: string;
   /** Request path */

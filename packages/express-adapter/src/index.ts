@@ -9,6 +9,14 @@ import type {
 } from "@decorify/core";
 import type { Server } from "node:http";
 
+declare module "@decorify/core" {
+  interface InjectableAdapter extends Application {}
+  interface InjectableContext {
+    req: Request;
+    res: Response;
+  }
+}
+
 export class ExpressAdapter implements HttpAdapter<Application> {
   private app: Application;
   private server: Server | null = null;
