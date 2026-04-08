@@ -26,6 +26,7 @@ interface ResolvedEntry<T = any> {
 export class Container implements Resolver {
   private registry = new Map<Token, ResolvedEntry>();
   private instances = new Map<Token, any>();
+  private pendingAsync = new Map<Token, Promise<any>>();
 
   constructor(
     private parent?: Container,
@@ -72,6 +73,17 @@ export class Container implements Resolver {
     return injectionContext.run(
       { container: this, resolutionStack: [], lifetimeStack: [] },
       () => this.resolveInContext(token),
+    );
+  }
+
+  async resolveAsync<T>(token: Token<T>): Promise<T> {
+    const existingCtx = injectionContext.getStore();
+    if (existingCtx) {
+      return this.resolveInContextAsync(token);
+    }
+    return injectionContext.run(
+      { container: this, resolutionStack: [], lifetimeStack: [] },
+      () => this.resolveInContextAsync(token),
     );
   }
 
@@ -158,6 +170,101 @@ export class Container implements Resolver {
     }
   }
 
+  /** @internal — async counterpart to resolveInContext */
+  private async resolveInContextAsync<T>(token: Token<T>): Promise<T> {
+    if (this.instances.has(token)) {
+      return this.instances.get(token);
+    }
+
+    if (this.pendingAsync.has(token)) {
+      return this.pendingAsync.get(token);
+    }
+
+    let entry = this.lookup(token);
+
+    if (!entry) {
+      this.tryAutoRegister(token);
+      entry = this.registry.get(token);
+    }
+
+    if (!entry) {
+      throw new Error(
+        `[DI] No provider registered for ${tokenName(token)}. Did you forget @Injectable() or container.register()?`,
+      );
+    }
+
+    const lifetime = entry.lifetime;
+
+    if (lifetime === Lifetime.SINGLETON && this.parent) {
+      const ctx = injectionContext.getStore()!;
+      const prev = ctx.container;
+      ctx.container = this.parent;
+      try {
+        return await this.parent.resolveInContextAsync(token);
+      } finally {
+        ctx.container = prev;
+      }
+    }
+
+    if (lifetime === Lifetime.SCOPED && !this.isScoped) {
+      throw new Error(
+        `[DI] Cannot resolve scoped token "${tokenName(token)}" from root container. Use createScope().`,
+      );
+    }
+
+    const ctx = injectionContext.getStore()!;
+
+    if (ctx.resolutionStack.includes(token)) {
+      const cycle = [
+        ...ctx.resolutionStack.slice(ctx.resolutionStack.indexOf(token)),
+        token,
+      ]
+        .map((t) => tokenName(t))
+        .join(" → ");
+      throw new Error(`[DI] Circular dependency detected: ${cycle}`);
+    }
+
+    if ("useExisting" in entry.provider) {
+      ctx.resolutionStack.push(token);
+      try {
+        return await this.resolveInContextAsync(entry.provider.useExisting);
+      } finally {
+        ctx.resolutionStack.pop();
+      }
+    }
+
+    const ltStack = ctx.lifetimeStack;
+    if (ltStack.length > 0) {
+      const parent = ltStack[ltStack.length - 1]!;
+      if (SCOPE_RANK[parent.lifetime] < SCOPE_RANK[lifetime]) {
+        throw new Error(
+          `[DI] Captive dependency detected: ${parent.lifetime} "${tokenName(parent.token)}" depends on ${lifetime} "${tokenName(token)}". A longer-lived service must not capture a shorter-lived one.`,
+        );
+      }
+    }
+
+    ctx.resolutionStack.push(token);
+    ltStack.push({ token, lifetime });
+    try {
+      if (lifetime !== Lifetime.TRANSIENT) {
+        const promise = this.createInstanceAsync(entry)
+          .then((instance) => {
+            this.instances.set(token, instance);
+            return instance;
+          })
+          .finally(() => {
+            this.pendingAsync.delete(token);
+          });
+        this.pendingAsync.set(token, promise);
+        return (await promise) as T;
+      }
+      return (await this.createInstanceAsync(entry)) as T;
+    } finally {
+      ctx.resolutionStack.pop();
+      ltStack.pop();
+    }
+  }
+
   createScope(): Container {
     return new Container(this, true);
   }
@@ -171,6 +278,10 @@ export class Container implements Resolver {
   }
 
   async dispose(): Promise<void> {
+    if (this.pendingAsync.size > 0) {
+      await Promise.allSettled(this.pendingAsync.values());
+    }
+
     const instances = [...this.instances.values()].reverse();
     this.clear();
 
@@ -203,6 +314,7 @@ export class Container implements Resolver {
   private clear(): void {
     this.instances.clear();
     this.registry.clear();
+    this.pendingAsync.clear();
   }
 
   private lookup(token: Token): ResolvedEntry | undefined {
@@ -260,11 +372,44 @@ export class Container implements Resolver {
     if (result instanceof Promise) {
       throw new Error(
         `[DI] Factory for "${tokenName((p as any).provide)}" returned a Promise. ` +
-          `Async factories are not supported.`,
+          `Async factories are not supported in resolve(). Use resolveAsync() instead.`,
       );
     }
 
     return result as T;
+  }
+
+  private async createInstanceAsync<T>(entry: ResolvedEntry<T>): Promise<T> {
+    const p = entry.provider;
+    if ("useValue" in p) {
+      return p.useValue;
+    }
+    if ("useFactory" in p) {
+      return this.buildFactoryInstanceAsync<T>(p);
+    }
+    return new (p as ClassProvider<T>).useClass();
+  }
+
+  private async buildFactoryInstanceAsync<T>(
+    p: FactoryProvider<T>,
+  ): Promise<T> {
+    const deps = (p as FactoryProvider).inject;
+    const args: unknown[] = [];
+
+    for (const dep of deps ?? []) {
+      if (this.isOptionalFactoryDependency(dep)) {
+        const optDep = dep as OptionalFactoryDependency;
+        if (optDep.optional && !this.has(optDep.token)) {
+          args.push(undefined);
+        } else {
+          args.push(await this.resolveInContextAsync(optDep.token));
+        }
+      } else {
+        args.push(await this.resolveInContextAsync(dep as Token));
+      }
+    }
+
+    return await p.useFactory(...args);
   }
 
   private isOptionalFactoryDependency(

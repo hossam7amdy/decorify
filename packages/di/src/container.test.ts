@@ -947,4 +947,272 @@ describe("DI Container", () => {
       }
     });
   });
+
+  describe("resolveAsync", () => {
+    it("should resolve an async factory", async () => {
+      const token = new InjectionToken<string>("async");
+      container.register({
+        provide: token,
+        useFactory: () => Promise.resolve("world"),
+      });
+      expect(await container.resolveAsync(token)).toBe("world");
+    });
+
+    it("should resolve a useExisting alias pointing to an async factory", async () => {
+      const BASE = new InjectionToken<string>("base");
+      const ALIAS = new InjectionToken<string>("alias");
+      container.register({
+        provide: BASE,
+        useFactory: async () => "base-value",
+      });
+      container.register({ provide: ALIAS, useExisting: BASE });
+      expect(await container.resolveAsync(ALIAS)).toBe("base-value");
+    });
+
+    it("should cache singleton across multiple resolveAsync calls", async () => {
+      const token = new InjectionToken<object>("singleton");
+      container.register({ provide: token, useFactory: async () => ({}) });
+      const a = await container.resolveAsync(token);
+      const b = await container.resolveAsync(token);
+      expect(a).toBe(b);
+    });
+
+    it("should call async factory only once for concurrent singleton resolution", async () => {
+      const factory = vi.fn(async () => ({}));
+      const token = new InjectionToken<object>("concurrent");
+      container.register({ provide: token, useFactory: factory });
+
+      const [a, b] = await Promise.all([
+        container.resolveAsync(token),
+        container.resolveAsync(token),
+      ]);
+
+      expect(factory).toHaveBeenCalledTimes(1);
+      expect(a).toBe(b);
+    });
+
+    it("should return new instance each time for transient async factory", async () => {
+      const token = new InjectionToken<object>("transient");
+      container.register({
+        provide: token,
+        useFactory: async () => ({}),
+        lifetime: Lifetime.TRANSIENT,
+      });
+      const a = await container.resolveAsync(token);
+      const b = await container.resolveAsync(token);
+      expect(a).not.toBe(b);
+    });
+
+    it("should resolve async factory with async inject dependencies", async () => {
+      const A = new InjectionToken<string>("a");
+      const B = new InjectionToken<string>("b");
+      const RESULT = new InjectionToken<string>("result");
+
+      container.register({ provide: A, useFactory: async () => "async-a" });
+      container.register({ provide: B, useFactory: async () => "async-b" });
+      container.register({
+        provide: RESULT,
+        useFactory: async (a: string, b: string) => `${a}+${b}`,
+        inject: [A, B],
+      });
+
+      expect(await container.resolveAsync(RESULT)).toBe("async-a+async-b");
+    });
+
+    it("should resolve async factory with sync inject dependencies", async () => {
+      const DEP = new InjectionToken<string>("dep");
+      const RESULT = new InjectionToken<string>("result");
+
+      container.register({ provide: DEP, useValue: "sync-dep" });
+      container.register({
+        provide: RESULT,
+        useFactory: async (d: string) => `got-${d}`,
+        inject: [DEP],
+      });
+
+      expect(await container.resolveAsync(RESULT)).toBe("got-sync-dep");
+    });
+
+    it("should resolve sync factory that depends on async factory via inject array", async () => {
+      const ASYNC_DEP = new InjectionToken<string>("asyncDep");
+      const SYNC_RESULT = new InjectionToken<string>("syncResult");
+
+      container.register({
+        provide: ASYNC_DEP,
+        useFactory: async () => "async-val",
+      });
+      container.register({
+        provide: SYNC_RESULT,
+        useFactory: (d: string) => `sync-${d}`,
+        inject: [ASYNC_DEP],
+      });
+
+      expect(await container.resolveAsync(SYNC_RESULT)).toBe("sync-async-val");
+    });
+
+    it("should make singleton available via sync resolve() after resolveAsync()", async () => {
+      const token = new InjectionToken<string>("primed");
+      container.register({
+        provide: token,
+        useFactory: async () => "primed-value",
+      });
+
+      await container.resolveAsync(token);
+      expect(container.resolve(token)).toBe("primed-value");
+    });
+
+    it("should detect circular dependencies in the async path", async () => {
+      const A = new InjectionToken<unknown>("A");
+      const B = new InjectionToken<unknown>("B");
+
+      container.register({ provide: A, useFactory: () => null, inject: [B] });
+      container.register({ provide: B, useFactory: () => null, inject: [A] });
+
+      await expect(container.resolveAsync(A)).rejects.toThrow(
+        "Circular dependency detected",
+      );
+    });
+
+    it("should detect captive dependency in the async path", async () => {
+      const SINGLETON_TOKEN = new InjectionToken<unknown>("singleton");
+      const TRANSIENT_TOKEN = new InjectionToken<unknown>("transient");
+
+      container.register({
+        provide: SINGLETON_TOKEN,
+        useFactory: async () => ({}),
+        inject: [TRANSIENT_TOKEN],
+      });
+      container.register({
+        provide: TRANSIENT_TOKEN,
+        useFactory: async () => ({}),
+        lifetime: Lifetime.TRANSIENT,
+      });
+
+      await expect(container.resolveAsync(SINGLETON_TOKEN)).rejects.toThrow(
+        "Captive dependency detected",
+      );
+    });
+
+    it("should resolve singleton async factory via scoped container from parent", async () => {
+      const token = new InjectionToken<object>("singletonFromScope");
+      container.register({ provide: token, useFactory: async () => ({}) });
+
+      const scope = container.createScope();
+      const fromRoot = await container.resolveAsync(token);
+      const fromScope = await scope.resolveAsync(token);
+      expect(fromRoot).toBe(fromScope);
+    });
+
+    it("should resolve scoped async factory within scope", async () => {
+      const token = new InjectionToken<object>("scoped");
+      container.register({
+        provide: token,
+        useFactory: async () => ({}),
+        lifetime: Lifetime.SCOPED,
+      });
+
+      const scope = container.createScope();
+      const a = await scope.resolveAsync(token);
+      const b = await scope.resolveAsync(token);
+      expect(a).toBe(b);
+    });
+
+    it("should return different instances across different scopes", async () => {
+      const token = new InjectionToken<object>("scoped2");
+      container.register({
+        provide: token,
+        useFactory: async () => ({}),
+        lifetime: Lifetime.SCOPED,
+      });
+
+      const scope1 = container.createScope();
+      const scope2 = container.createScope();
+      const a = await scope1.resolveAsync(token);
+      const b = await scope2.resolveAsync(token);
+      expect(a).not.toBe(b);
+    });
+
+    it("should throw when resolving scoped async token from root", async () => {
+      const token = new InjectionToken<unknown>("scopedRoot");
+      container.register({
+        provide: token,
+        useFactory: async () => ({}),
+        lifetime: Lifetime.SCOPED,
+      });
+
+      await expect(container.resolveAsync(token)).rejects.toThrow(
+        "Cannot resolve scoped token",
+      );
+    });
+
+    it("should propagate rejection from async factory", async () => {
+      const token = new InjectionToken<string>("failing");
+      const boom = new Error("factory failed");
+      container.register({
+        provide: token,
+        useFactory: () => Promise.reject(boom),
+      });
+
+      await expect(container.resolveAsync(token)).rejects.toThrow(
+        "factory failed",
+      );
+    });
+
+    it("should retry async factory after a previous rejection", async () => {
+      const token = new InjectionToken<string>("retryable");
+      let calls = 0;
+      container.register({
+        provide: token,
+        useFactory: () => {
+          calls++;
+          if (calls === 1) return Promise.reject(new Error("first attempt"));
+          return Promise.resolve("success");
+        },
+      });
+
+      await expect(container.resolveAsync(token)).rejects.toThrow(
+        "first attempt",
+      );
+      expect(await container.resolveAsync(token)).toBe("success");
+    });
+
+    it("should pass undefined for optional async inject dependency when not registered", async () => {
+      const MISSING = new InjectionToken<string>("missing");
+      const RESULT = new InjectionToken<string>("result");
+
+      container.register({
+        provide: RESULT,
+        useFactory: async (d?: string) => d ?? "fallback",
+        inject: [{ token: MISSING, optional: true }],
+      });
+
+      expect(await container.resolveAsync(RESULT)).toBe("fallback");
+    });
+
+    it("should resolve optional async inject dependency when registered", async () => {
+      const DEP = new InjectionToken<string>("optDep");
+      const RESULT = new InjectionToken<string>("optResult");
+
+      container.register({ provide: DEP, useFactory: async () => "present" });
+      container.register({
+        provide: RESULT,
+        useFactory: async (d?: string) => d ?? "fallback",
+        inject: [{ token: DEP, optional: true }],
+      });
+
+      expect(await container.resolveAsync(RESULT)).toBe("present");
+    });
+
+    it("should still throw in sync resolve() when factory returns a Promise, with hint", () => {
+      const token = new InjectionToken("asyncBadV2");
+      container.register({
+        provide: token,
+        useFactory: (() => Promise.resolve("value")) as any,
+      });
+
+      expect(() => container.resolve(token)).toThrow(
+        "Use resolveAsync() instead",
+      );
+    });
+  });
 });

@@ -30,7 +30,7 @@ export interface ValueProvider<T = any> {
 
 export interface FactoryProvider<T = any> {
   provide: Token;
-  useFactory: (...args: any[]) => T;
+  useFactory: (...args: any[]) => T | Promise<T>;
   inject?: Array<Token | OptionalFactoryDependency>;
   lifetime?: Lifetime;
 }

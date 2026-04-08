@@ -20,6 +20,7 @@ pnpm add @decorify/di
 - Captive dependency detection (prevents longer-lived services from capturing shorter-lived ones)
 - Scoped containers via `createScope()`
 - `AsyncLocalStorage`-based injection context — `inject()` works in constructors, factories, and nested resolution
+- **Async factory support** — `resolveAsync()` handles `Promise`-returning factories for async initialization (DB connections, config vaults, HTTP clients)
 
 ## Usage
 
@@ -75,7 +76,12 @@ import { Container } from "@decorify/di";
 
 const container = new Container();
 container.register(UserService);
+
+// Synchronous
 const service = container.resolve(UserService);
+
+// Async (for factories that return Promise)
+const db = await container.resolveAsync(DatabaseService);
 ```
 
 ## Container API
@@ -94,10 +100,20 @@ container.register({ provide: IUserService, useClass: UserService });
 // Value provider
 container.register({ provide: DB_URL, useValue: "postgres://localhost/mydb" });
 
-// Factory provider
+// Sync factory provider
 container.register({
   provide: LOGGER,
   useFactory: () => new Logger({ level: "info" }),
+});
+
+// Async factory provider
+container.register({
+  provide: DATABASE,
+  useFactory: async () => {
+    const db = new Database();
+    await db.connect();
+    return db;
+  },
 });
 
 // Factory provider with injected dependencies
@@ -105,6 +121,13 @@ container.register({
   provide: LOGGER,
   useFactory: (config: AppConfig) => new Logger({ level: config.logLevel }),
   inject: [APP_CONFIG],
+});
+
+// Async factory with injected dependencies (sync or async)
+container.register({
+  provide: USER_REPO,
+  useFactory: async (db: Database) => new UserRepository(db),
+  inject: [DATABASE],
 });
 
 // Factory provider with optional dependency
@@ -129,18 +152,6 @@ container.register({
 });
 ```
 
-### `container.registerMany(providers)`
-
-Register multiple providers at once:
-
-```ts
-container.registerMany([
-  UserRepository,
-  UserService,
-  { provide: DB_URL, useValue: "postgres://localhost/mydb" },
-]);
-```
-
 ### `container.resolve(token)`
 
 Synchronously resolve a token. Throws if:
@@ -148,7 +159,37 @@ Synchronously resolve a token. Throws if:
 - The token is not registered (and not `@Injectable`)
 - A circular dependency is detected
 - A captive dependency is detected
-- A factory returns a `Promise`
+- A factory returns a `Promise` (use `resolveAsync()` instead)
+
+### `container.resolveAsync(token)`
+
+Asynchronously resolve a token. Supports both sync and async factories. Use this when any factory in the dependency graph returns a `Promise`.
+
+```ts
+// Boot phase: resolve async singletons once
+const db = await container.resolveAsync(DATABASE);
+
+// After resolveAsync(), singletons are cached —
+// subsequent sync resolve() calls return the cached instance
+const samDb = container.resolve(DATABASE); // works
+```
+
+**Concurrent resolution is safe for singletons.** If two `resolveAsync()` calls for the same singleton token race, the factory is only called once — both calls receive the same instance.
+
+```ts
+const [a, b] = await Promise.all([
+  container.resolveAsync(DATABASE),
+  container.resolveAsync(DATABASE),
+]);
+// a === b, factory called once
+```
+
+**`inject()` inside class constructors remains synchronous.** If a class uses `inject(SomeToken)` and `SomeToken` has an async factory, pre-resolve it before resolving the class:
+
+```ts
+await container.resolveAsync(DATABASE); // prime the cache
+const repo = await container.resolveAsync(UserRepository); // inject(DATABASE) finds cache
+```
 
 ### `container.createScope()`
 
@@ -157,6 +198,7 @@ Create a child container for resolving `scoped` dependencies. Singletons delegat
 ```ts
 const scope = container.createScope();
 const handler = scope.resolve(RequestHandler);
+await scope.resolveAsync(ScopedAsyncService);
 ```
 
 ### `container.has(token)`
@@ -167,41 +209,21 @@ Check if a token is registered (including parent containers):
 container.has(UserService); // true / false
 ```
 
-### `container.validate(tokens)`
-
-Assert that all given tokens are registered. Useful at startup:
-
-```ts
-container.validate([UserService, UserRepository]);
-```
-
-### `container.clear()`
-
-Remove all instances and registrations. Primarily useful in tests.
-
 ### `container.dispose()`
 
-Synchronously disposes the container. Calls `[Symbol.dispose]()` on all tracked instances in reverse registration order. Marks the container as disposed — further `register()` and `resolve()` calls will throw.
+Async. Disposes all tracked instances in reverse resolution order. Prefers `[Symbol.asyncDispose]()` over `[Symbol.dispose]()`. Any in-flight `resolveAsync()` calls are awaited before disposal begins, preventing disposal of partially-constructed instances.
 
 ```ts
-container.dispose();
-// or use the explicit resource management syntax:
-using container = new Container();
-```
-
-### `container.disposeAsync()`
-
-Async variant of `dispose()`. Prefers `[Symbol.asyncDispose]()` over `[Symbol.dispose]()` when both are available.
-
-```ts
-await container.disposeAsync();
-// or use the explicit resource management syntax:
+await container.dispose();
+// or use explicit resource management:
 await using container = new Container();
 ```
 
+Multiple disposal errors are chained as `SuppressedError`.
+
 ### `container.isInInjectionContext`
 
-Returns `true` if called during an active `container.resolve()` call (i.e., inside a constructor, field initializer, or factory).
+Returns `true` if called during an active `container.resolve()` or `container.resolveAsync()` call (i.e., inside a constructor, field initializer, or factory).
 
 ```ts
 container.isInInjectionContext; // false outside resolve
@@ -220,20 +242,20 @@ const APP_CONFIG = new InjectionToken<AppConfig>("APP_CONFIG");
 container.register({ provide: DB_URL, useValue: "postgres://localhost/mydb" });
 container.register({
   provide: APP_CONFIG,
-  useFactory: () => loadConfig(),
+  useFactory: async () => loadConfig(), // async factory
 });
 
-// Resolve
 const url = container.resolve(DB_URL); // string
+const config = await container.resolveAsync(APP_CONFIG); // AppConfig
 ```
 
 ## Lifetimes
 
-| Lifetime    | Description                                         |
-| ----------- | --------------------------------------------------- |
-| `singleton` | One instance per container (default)                |
-| `transient` | New instance on every `resolve()` call              |
-| `scoped`    | One instance per scope created with `createScope()` |
+| Lifetime    | Description                                               |
+| ----------- | --------------------------------------------------------- |
+| `singleton` | One instance per container (default)                      |
+| `transient` | New instance on every `resolve()` / `resolveAsync()` call |
+| `scoped`    | One instance per scope created with `createScope()`       |
 
 ```ts
 import { Lifetime } from "@decorify/di";
