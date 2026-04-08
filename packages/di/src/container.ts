@@ -232,39 +232,46 @@ export class Container implements Resolver {
 
   private createInstance<T>(entry: ResolvedEntry<T>): T {
     const p = entry.provider;
-    if ("useValue" in p) return p.useValue;
-    if ("useFactory" in p) {
-      const deps = (p as FactoryProvider).inject;
-      const args: unknown[] = [];
-      if (deps && deps.length > 0) {
-        for (const dep of deps) {
-          if (
-            typeof dep === "object" &&
-            dep !== null &&
-            "token" in dep &&
-            "optional" in dep
-          ) {
-            const optDep = dep as OptionalFactoryDependency;
-            if (optDep.optional && !this.has(optDep.token)) {
-              args.push(undefined);
-            } else {
-              args.push(this.resolveInContext(optDep.token));
-            }
-          } else {
-            args.push(this.resolveInContext(dep as Token));
-          }
-        }
-      }
-      const result = p.useFactory(...args);
-      if (result instanceof Promise) {
-        throw new Error(
-          `[DI] Factory for "${tokenName((p as any).provide)}" returned a Promise. ` +
-            `Async factories are not supported.`,
-        );
-      }
-      return result as T;
+    if ("useValue" in p) {
+      return p.useValue;
     }
-    const ctor: Constructor<T> = (p as ClassProvider<T>).useClass;
-    return new ctor();
+    if ("useFactory" in p) {
+      return this.buildFactoryInstance<T>(p);
+    }
+    return new (p as ClassProvider<T>).useClass();
+  }
+
+  private buildFactoryInstance<T>(p: FactoryProvider<T>) {
+    const deps = (p as FactoryProvider).inject;
+
+    const args: unknown[] = (deps ?? []).map((dep) => {
+      if (this.isOptionalFactoryDependency(dep)) {
+        const optDep = dep as OptionalFactoryDependency;
+        if (optDep.optional && !this.has(optDep.token)) {
+          return undefined;
+        }
+        return this.resolveInContext(optDep.token);
+      }
+      return this.resolveInContext(dep);
+    });
+
+    const result = p.useFactory(...args);
+
+    if (result instanceof Promise) {
+      throw new Error(
+        `[DI] Factory for "${tokenName((p as any).provide)}" returned a Promise. ` +
+          `Async factories are not supported.`,
+      );
+    }
+
+    return result as T;
+  }
+
+  private isOptionalFactoryDependency(
+    dep: Token<any> | OptionalFactoryDependency,
+  ) {
+    return (
+      dep && typeof dep === "object" && "token" in dep && "optional" in dep
+    );
   }
 }
