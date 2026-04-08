@@ -111,28 +111,6 @@ describe("DI Container", () => {
     });
   });
 
-  describe("registerMany", () => {
-    it("should register multiple providers at once", () => {
-      class A {}
-      class B {}
-      container.registerMany([A, B]);
-      expect(container.resolve(A)).toBeInstanceOf(A);
-      expect(container.resolve(B)).toBeInstanceOf(B);
-    });
-
-    it("should leave earlier registrations intact on partial failure", () => {
-      class A {}
-      class B {}
-      container.register(B); // pre-register B to cause duplicate error
-
-      expect(() => container.registerMany([A, B])).toThrow(
-        "is already registered",
-      );
-      // A was registered before B threw
-      expect(container.has(A)).toBe(true);
-    });
-  });
-
   describe("double registration guard", () => {
     it("should throw when registering the same token twice", () => {
       class MyService {}
@@ -196,7 +174,9 @@ describe("DI Container", () => {
         b = inject(B);
       }
 
-      container.registerMany([A, B, C]);
+      container.register(A);
+      container.register(B);
+      container.register(C);
       const a = container.resolve(A);
       expect(a.b.c.value).toBe("c");
     });
@@ -719,7 +699,8 @@ describe("DI Container", () => {
     it("should not throw when all tokens are registered", () => {
       class A {}
       class B {}
-      container.registerMany([A, B]);
+      container.register(A);
+      container.register(B);
       expect(() => container.validate([A, B])).not.toThrow();
     });
 

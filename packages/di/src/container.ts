@@ -68,10 +68,6 @@ export class Container implements Resolver {
     this.registry.set(token, { provider: provider, lifetime });
   }
 
-  registerMany(providers: Provider[]): void {
-    for (const p of providers) this.register(p);
-  }
-
   resolve<T>(token: Token<T>): T {
     const existingCtx = injectionContext.getStore();
     if (existingCtx) {
