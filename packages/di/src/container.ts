@@ -61,7 +61,7 @@ export class Container implements Resolver {
       );
     }
 
-    const lifetime = this.inferLifetime(provider) ?? Lifetime.SINGLETON;
+    const lifetime = this.resolveLifetime(provider);
     this.registry.set(token, { provider: provider, lifetime });
   }
 
@@ -321,18 +321,18 @@ export class Container implements Resolver {
     return this.registry.get(token) ?? this.parent?.lookup(token);
   }
 
-  private inferLifetime(provider: Provider): Lifetime | undefined {
+  private resolveLifetime(provider: Provider): Lifetime {
+    let lifetime: Lifetime | undefined;
     if (typeof provider === "function") {
-      return (provider as any)[Symbol.metadata]?.[DI_LIFETIME];
-    }
-    if ("useClass" in provider) {
+      lifetime = (provider as any)[Symbol.metadata]?.[DI_LIFETIME];
+    } else if ("useClass" in provider) {
       const ctor = provider.useClass ?? {};
-      return provider.lifetime ?? (ctor as any)[Symbol.metadata]?.[DI_LIFETIME];
+      lifetime =
+        provider.lifetime ?? (ctor as any)[Symbol.metadata]?.[DI_LIFETIME];
+    } else if ("useFactory" in provider) {
+      lifetime = provider.lifetime;
     }
-    if ("useFactory" in provider) {
-      return provider.lifetime;
-    }
-    return undefined;
+    return lifetime ?? Lifetime.SINGLETON;
   }
 
   private tryAutoRegister<T>(token: Token<T>): void {
