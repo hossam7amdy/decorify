@@ -3,7 +3,7 @@ import type { Token } from "./types.js";
 import type { Lifetime } from "./lifetime.js";
 
 export interface Resolver {
-  resolveSync<T>(token: Token<T>): T;
+  resolveInContext<T>(token: Token<T>): T;
 }
 
 export interface InjectionContext {
@@ -36,5 +36,5 @@ export function inject<T>(token: Token<T>): T {
         `that is being resolved by the DI container.`,
     );
   }
-  return ctx.container.resolveSync(token);
+  return ctx.container.resolveInContext(token);
 }

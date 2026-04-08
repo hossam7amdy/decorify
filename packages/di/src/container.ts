@@ -75,16 +75,16 @@ export class Container implements Resolver {
   resolve<T>(token: Token<T>): T {
     const existingCtx = injectionContext.getStore();
     if (existingCtx) {
-      return this.resolveSync(token);
+      return this.resolveInContext(token);
     }
     return injectionContext.run(
       { container: this, resolutionStack: [], lifetimeStack: [] },
-      () => this.resolveSync(token),
+      () => this.resolveInContext(token),
     );
   }
 
   /** @internal — used by inject() and internally for recursive resolution */
-  resolveSync<T>(token: Token<T>): T {
+  resolveInContext<T>(token: Token<T>): T {
     if (this.disposed) {
       throw new Error("[DI] Cannot resolve from a disposed container scope.");
     }
@@ -108,7 +108,14 @@ export class Container implements Resolver {
     const lifetime = entry.lifetime;
 
     if (lifetime === Lifetime.SINGLETON && this.parent) {
-      return this.parent.resolveSync(token);
+      const ctx = injectionContext.getStore()!;
+      const prev = ctx.container;
+      ctx.container = this.parent;
+      try {
+        return this.parent.resolveInContext(token);
+      } finally {
+        ctx.container = prev;
+      }
     }
 
     if (lifetime === Lifetime.SCOPED && !this.isScoped) {
@@ -132,7 +139,7 @@ export class Container implements Resolver {
     if ("useExisting" in entry.provider) {
       ctx.resolutionStack.push(token);
       try {
-        return this.resolveSync(entry.provider.useExisting);
+        return this.resolveInContext(entry.provider.useExisting);
       } finally {
         ctx.resolutionStack.pop();
       }
@@ -294,10 +301,10 @@ export class Container implements Resolver {
             if (optDep.optional && !this.has(optDep.token)) {
               args.push(undefined);
             } else {
-              args.push(this.resolveSync(optDep.token));
+              args.push(this.resolveInContext(optDep.token));
             }
           } else {
-            args.push(this.resolveSync(dep as Token));
+            args.push(this.resolveInContext(dep as Token));
           }
         }
       }

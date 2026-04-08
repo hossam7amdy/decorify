@@ -200,6 +200,69 @@ describe("DI Container", () => {
       const a = container.resolve(A);
       expect(a.b.c.value).toBe("c");
     });
+
+    it("singleton factory using inject() should resolve deps from root, not from calling child", () => {
+      const SINGLETON = new InjectionToken("SINGLETON");
+      const CONFIG = new InjectionToken("CONFIG");
+
+      container.register({
+        provide: CONFIG,
+        useValue: "root-config",
+      });
+
+      container.register({
+        provide: SINGLETON,
+        useFactory: () => {
+          const config = inject(CONFIG);
+          return { config };
+        },
+        lifetime: Lifetime.SINGLETON,
+      });
+
+      const child = container.createScope();
+      // Child overrides CONFIG with a scoped factory
+      child.register(
+        {
+          provide: CONFIG,
+          useFactory: () => "child-config",
+          lifetime: Lifetime.SCOPED,
+        },
+        { override: true },
+      );
+
+      const instance = child.resolve(SINGLETON);
+
+      expect(instance.config).toBe("root-config");
+    });
+
+    it("grandchild scope: singleton captures dependency two levels down", () => {
+      const SINGLETON = new InjectionToken("SINGLETON");
+      const CONFIG = new InjectionToken("CONFIG");
+
+      container.register({ provide: CONFIG, useValue: "root-config" });
+
+      container.register({
+        provide: SINGLETON,
+        useFactory: () => ({ config: inject(CONFIG) }),
+        lifetime: Lifetime.SINGLETON,
+      });
+
+      const child = container.createScope();
+      const grandchild = child.createScope();
+
+      grandchild.register(
+        {
+          provide: CONFIG,
+          useFactory: () => "grandchild-config",
+          lifetime: Lifetime.SCOPED,
+        },
+        { override: true },
+      );
+
+      const instance = grandchild.resolve(SINGLETON) as { config: string };
+
+      expect(instance.config).toBe("root-config");
+    });
   });
 
   describe("circular dependency detection", () => {
