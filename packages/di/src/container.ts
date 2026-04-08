@@ -26,7 +26,6 @@ interface ResolvedEntry<T = any> {
 export class Container implements Resolver {
   private registry = new Map<Token, ResolvedEntry>();
   private instances = new Map<Token, any>();
-  private disposed = false;
 
   constructor(
     private parent?: Container,
@@ -34,9 +33,6 @@ export class Container implements Resolver {
   ) {}
 
   register<T>(provider: Provider<T>, opts?: { override?: boolean }): void {
-    if (this.disposed) {
-      throw new Error("[DI] Cannot register on a disposed container scope.");
-    }
     if (typeof provider === "function") {
       provider = {
         provide: provider,
@@ -81,9 +77,6 @@ export class Container implements Resolver {
 
   /** @internal — used by inject() and internally for recursive resolution */
   resolveInContext<T>(token: Token<T>): T {
-    if (this.disposed) {
-      throw new Error("[DI] Cannot resolve from a disposed container scope.");
-    }
     if (this.instances.has(token)) {
       return this.instances.get(token);
     }
@@ -166,11 +159,6 @@ export class Container implements Resolver {
   }
 
   createScope(): Container {
-    if (this.disposed) {
-      throw new Error(
-        "[DI] Cannot create a child scope from a disposed container.",
-      );
-    }
     return new Container(this, true);
   }
 
@@ -190,43 +178,9 @@ export class Container implements Resolver {
     return injectionContext.getStore() !== undefined;
   }
 
-  clear(): void {
-    this.instances.clear();
-    this.registry.clear();
-  }
-
-  dispose(): void {
-    this.disposed = true;
+  async dispose(): Promise<void> {
     const instances = [...this.instances.values()].reverse();
-    this.instances.clear();
-
-    let error: unknown;
-    let hasError = false;
-
-    for (const instance of instances) {
-      if (instance != null && typeof instance[Symbol.dispose] === "function") {
-        try {
-          instance[Symbol.dispose]();
-        } catch (err) {
-          error = hasError
-            ? new SuppressedError(
-                err,
-                error,
-                "An error was suppressed during disposal.",
-              )
-            : err;
-          hasError = true;
-        }
-      }
-    }
-
-    if (hasError) throw error;
-  }
-
-  async disposeAsync(): Promise<void> {
-    this.disposed = true;
-    const instances = [...this.instances.values()].reverse();
-    this.instances.clear();
+    this.clear();
 
     let error: unknown;
     let hasError = false;
@@ -252,6 +206,11 @@ export class Container implements Resolver {
     }
 
     if (hasError) throw error;
+  }
+
+  private clear(): void {
+    this.instances.clear();
+    this.registry.clear();
   }
 
   private lookup(token: Token): ResolvedEntry | undefined {

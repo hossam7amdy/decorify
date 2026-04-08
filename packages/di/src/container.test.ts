@@ -855,538 +855,127 @@ describe("DI Container", () => {
     });
   });
 
-  describe("clear", () => {
-    it("should allow re-registration after clear", () => {
-      class Svc {
-        version = 1;
-      }
-      container.register(Svc);
-      const first = container.resolve(Svc);
-
-      container.clear();
-
-      class SvcV2 {
-        version = 2;
-      }
-      container.register({ provide: Svc, useClass: SvcV2 });
-      const second = container.resolve(Svc);
-
-      expect(first.version).toBe(1);
-      expect(second.version).toBe(2);
-    });
-
-    it("should clear cached instances so new resolve creates fresh ones", () => {
-      class Svc {}
-      container.register(Svc);
-      const before = container.resolve(Svc);
-
-      container.clear();
-      container.register(Svc);
-      const after = container.resolve(Svc);
-
-      expect(before).not.toBe(after);
-    });
-  });
-
-  describe("dispose / async dispose", () => {
+  describe("dispose", () => {
     function makeScopedProvider(token: any, lifetime = Lifetime.SCOPED) {
       return { provide: token, useClass: token, lifetime };
     }
 
-    describe("basic lifecycle", () => {
-      it("should allow disposing the root container", () => {
-        expect(() => container.dispose()).not.toThrow();
-      });
-
-      it("should allow disposing the root container asynchronously", async () => {
-        await expect(container.disposeAsync()).resolves.toBeUndefined();
-      });
-
-      it("should be idempotent — calling dispose twice does not throw", () => {
-        const scope = container.createScope();
-        scope.dispose();
-        expect(() => scope.dispose()).not.toThrow();
-      });
-
-      it("should be idempotent — calling disposeAsync twice does not throw", async () => {
-        const scope = container.createScope();
-        await scope.disposeAsync();
-        await expect(scope.disposeAsync()).resolves.toBeUndefined();
-      });
-
-      it("should dispose a scope with no resolved instances", () => {
-        const scope = container.createScope();
-        expect(() => scope.dispose()).not.toThrow();
-      });
+    it("should allow disposing the root container asynchronously", async () => {
+      await expect(container.dispose()).resolves.toBeUndefined();
     });
 
-    describe("root container disposal", () => {
-      it("should call Symbol.dispose on root singleton instances", () => {
-        const spy = vi.fn();
-        class Svc {
-          [Symbol.dispose]() {
-            spy();
-          }
-        }
-        container.register(Svc);
-        container.resolve(Svc);
-
-        container.dispose();
-        expect(spy).toHaveBeenCalledTimes(1);
-      });
-
-      it("should call Symbol.asyncDispose on root singleton instances", async () => {
-        const spy = vi.fn();
-        class Svc {
-          async [Symbol.asyncDispose]() {
-            spy();
-          }
-        }
-        container.register(Svc);
-        container.resolve(Svc);
-
-        await container.disposeAsync();
-        expect(spy).toHaveBeenCalledTimes(1);
-      });
-
-      it("should dispose root singletons in reverse resolution order", () => {
-        const order: string[] = [];
-
-        class A {
-          [Symbol.dispose]() {
-            order.push("A");
-          }
-        }
-        class B {
-          [Symbol.dispose]() {
-            order.push("B");
-          }
-        }
-        class C {
-          [Symbol.dispose]() {
-            order.push("C");
-          }
-        }
-
-        container.register(A);
-        container.register(B);
-        container.register(C);
-
-        container.resolve(A);
-        container.resolve(B);
-        container.resolve(C);
-
-        container.dispose();
-        expect(order).toEqual(["C", "B", "A"]);
-      });
-
-      it("should chain errors from root singleton disposal with SuppressedError", () => {
-        const err1 = new Error("first");
-        const err2 = new Error("second");
-
-        class A {
-          [Symbol.dispose]() {
-            throw err1;
-          }
-        }
-        class B {
-          [Symbol.dispose]() {
-            throw err2;
-          }
-        }
-
-        container.register(A);
-        container.register(B);
-
-        container.resolve(A);
-        container.resolve(B);
-
-        try {
-          container.dispose();
-          expect.unreachable("should have thrown");
-        } catch (e) {
-          expect(e).toBeInstanceOf(SuppressedError);
-          const se = e as SuppressedError;
-          expect(se.error).toBe(err1);
-          expect(se.suppressed).toBe(err2);
-        }
-      });
-
-      it("should throw on resolve after root container disposal", () => {
-        class Svc {}
-        container.register(Svc);
-        container.dispose();
-
-        expect(() => container.resolve(Svc)).toThrow(
-          "Cannot resolve from a disposed container scope.",
-        );
-      });
-
-      it("should throw on register after root container disposal", () => {
-        container.dispose();
-
-        expect(() => container.register(class X {})).toThrow(
-          "Cannot register on a disposed container scope.",
-        );
-      });
-
-      it("should throw on createScope after root container disposal", () => {
-        container.dispose();
-
-        expect(() => container.createScope()).toThrow(
-          "Cannot create a child scope from a disposed container.",
-        );
-      });
-
-      it("should be idempotent — disposing root twice does not throw", () => {
-        container.dispose();
-        expect(() => container.dispose()).not.toThrow();
-      });
-
-      it("should not affect already-created child scopes", () => {
-        class Svc {}
-        container.register({
-          provide: Svc,
-          useClass: Svc,
-          lifetime: Lifetime.SCOPED,
-        });
-        const scope = container.createScope();
-        scope.resolve(Svc);
-
-        container.dispose();
-
-        expect(() => scope.resolve(Svc)).not.toThrow();
-      });
+    it("should be idempotent — calling dispose twice does not throw", async () => {
+      const scope = container.createScope();
+      await scope.dispose();
+      await expect(scope.dispose()).resolves.toBeUndefined();
     });
 
-    describe("protocol invocation", () => {
-      it("should call Symbol.dispose on cached instances", () => {
-        const spy = vi.fn();
-        class Svc {
-          [Symbol.dispose]() {
-            spy();
-          }
+    it("should call Symbol.asyncDispose on root singleton instances", async () => {
+      const spy = vi.fn();
+      class Svc {
+        async [Symbol.asyncDispose]() {
+          spy();
         }
-        container.register(makeScopedProvider(Svc));
-        const scope = container.createScope();
-        scope.resolve(Svc);
+      }
+      container.register(Svc);
+      container.resolve(Svc);
 
-        scope.dispose();
-        expect(spy).toHaveBeenCalledTimes(1);
-      });
-
-      it("should call Symbol.asyncDispose on cached instances", async () => {
-        const spy = vi.fn();
-        class Svc {
-          async [Symbol.asyncDispose]() {
-            spy();
-          }
-        }
-        container.register(makeScopedProvider(Svc));
-        const scope = container.createScope();
-        scope.resolve(Svc);
-
-        await scope.disposeAsync();
-        expect(spy).toHaveBeenCalledTimes(1);
-      });
-
-      it("should fall back to Symbol.dispose when Symbol.asyncDispose is absent", async () => {
-        const spy = vi.fn();
-        class Svc {
-          [Symbol.dispose]() {
-            spy();
-          }
-        }
-        container.register(makeScopedProvider(Svc));
-        const scope = container.createScope();
-        scope.resolve(Svc);
-
-        await scope.disposeAsync();
-        expect(spy).toHaveBeenCalledTimes(1);
-      });
-
-      it("should NOT call Symbol.asyncDispose from sync dispose", () => {
-        const asyncSpy = vi.fn();
-        class Svc {
-          async [Symbol.asyncDispose]() {
-            asyncSpy();
-          }
-        }
-        container.register(makeScopedProvider(Svc));
-        const scope = container.createScope();
-        scope.resolve(Svc);
-
-        scope.dispose();
-        expect(asyncSpy).not.toHaveBeenCalled();
-      });
-
-      it("should skip instances without disposal methods", () => {
-        class Plain {}
-        container.register(makeScopedProvider(Plain));
-        const scope = container.createScope();
-        scope.resolve(Plain);
-
-        expect(() => scope.dispose()).not.toThrow();
-      });
+      await container.dispose();
+      expect(spy).toHaveBeenCalledTimes(1);
     });
 
-    describe("reverse-resolution order", () => {
-      it("should dispose in reverse resolution order", () => {
-        const order: string[] = [];
-
-        class A {
-          [Symbol.dispose]() {
-            order.push("A");
-          }
+    it("should call Symbol.asyncDispose on cached instances", async () => {
+      const spy = vi.fn();
+      class Svc {
+        async [Symbol.asyncDispose]() {
+          spy();
         }
-        class B {
-          [Symbol.dispose]() {
-            order.push("B");
-          }
-        }
-        class C {
-          [Symbol.dispose]() {
-            order.push("C");
-          }
-        }
+      }
+      container.register(makeScopedProvider(Svc));
+      const scope = container.createScope();
+      scope.resolve(Svc);
 
-        container.register(makeScopedProvider(A));
-        container.register(makeScopedProvider(B));
-        container.register(makeScopedProvider(C));
-
-        const scope = container.createScope();
-        scope.resolve(A);
-        scope.resolve(B);
-        scope.resolve(C);
-
-        scope.dispose();
-        expect(order).toEqual(["C", "B", "A"]);
-      });
-
-      it("should dispose async in reverse resolution order", async () => {
-        const order: string[] = [];
-
-        class A {
-          async [Symbol.asyncDispose]() {
-            order.push("A");
-          }
-        }
-        class B {
-          async [Symbol.asyncDispose]() {
-            order.push("B");
-          }
-        }
-        class C {
-          async [Symbol.asyncDispose]() {
-            order.push("C");
-          }
-        }
-
-        container.register(makeScopedProvider(A));
-        container.register(makeScopedProvider(B));
-        container.register(makeScopedProvider(C));
-
-        const scope = container.createScope();
-        scope.resolve(A);
-        scope.resolve(B);
-        scope.resolve(C);
-
-        await scope.disposeAsync();
-        expect(order).toEqual(["C", "B", "A"]);
-      });
+      await scope.dispose();
+      expect(spy).toHaveBeenCalledTimes(1);
     });
 
-    describe("error handling", () => {
-      it("should rethrow if one instance disposal fails", () => {
-        const err = new Error("boom");
-        class Svc {
-          [Symbol.dispose]() {
-            throw err;
-          }
+    it("should fall back to Symbol.dispose when Symbol.asyncDispose is absent", async () => {
+      const spy = vi.fn();
+      class Svc {
+        [Symbol.dispose]() {
+          spy();
         }
-        container.register(makeScopedProvider(Svc));
-        const scope = container.createScope();
-        scope.resolve(Svc);
+      }
+      container.register(makeScopedProvider(Svc));
+      const scope = container.createScope();
+      scope.resolve(Svc);
 
-        expect(() => scope.dispose()).toThrow(err);
-      });
-
-      it("should chain two errors with SuppressedError", () => {
-        const err1 = new Error("first");
-        const err2 = new Error("second");
-
-        class A {
-          [Symbol.dispose]() {
-            throw err1;
-          }
-        }
-        class B {
-          [Symbol.dispose]() {
-            throw err2;
-          }
-        }
-
-        container.register(makeScopedProvider(A));
-        container.register(makeScopedProvider(B));
-
-        const scope = container.createScope();
-        scope.resolve(A);
-        scope.resolve(B);
-
-        try {
-          scope.dispose(); // reverse order: B throws err2, then A throws err1
-          expect.unreachable("should have thrown");
-        } catch (e) {
-          expect(e).toBeInstanceOf(SuppressedError);
-          const se = e as SuppressedError;
-          expect(se.error).toBe(err1);
-          expect(se.suppressed).toBe(err2);
-        }
-      });
-
-      it("should chain three errors into nested SuppressedError", () => {
-        const err1 = new Error("first");
-        const err2 = new Error("second");
-        const err3 = new Error("third");
-
-        class A {
-          [Symbol.dispose]() {
-            throw err1;
-          }
-        }
-        class B {
-          [Symbol.dispose]() {
-            throw err2;
-          }
-        }
-        class C {
-          [Symbol.dispose]() {
-            throw err3;
-          }
-        }
-
-        container.register(makeScopedProvider(A));
-        container.register(makeScopedProvider(B));
-        container.register(makeScopedProvider(C));
-
-        const scope = container.createScope();
-        scope.resolve(A);
-        scope.resolve(B);
-        scope.resolve(C);
-
-        try {
-          scope.dispose(); // reverse: C(err3), B(err2), A(err1)
-          expect.unreachable("should have thrown");
-        } catch (e) {
-          const se = e as SuppressedError;
-          expect(se.error).toBe(err1);
-          const inner = se.suppressed as SuppressedError;
-          expect(inner.error).toBe(err2);
-          expect(inner.suppressed).toBe(err3);
-        }
-      });
-
-      it("should chain errors with SuppressedError in disposeAsync", async () => {
-        const err1 = new Error("first");
-        const err2 = new Error("second");
-
-        class A {
-          async [Symbol.asyncDispose]() {
-            throw err1;
-          }
-        }
-        class B {
-          async [Symbol.asyncDispose]() {
-            throw err2;
-          }
-        }
-
-        container.register(makeScopedProvider(A));
-        container.register(makeScopedProvider(B));
-
-        const scope = container.createScope();
-        scope.resolve(A);
-        scope.resolve(B);
-
-        try {
-          await scope.disposeAsync(); // reverse: B(err2), A(err1)
-          expect.unreachable("should have thrown");
-        } catch (e) {
-          const se = e as SuppressedError;
-          expect(se.error).toBe(err1);
-          expect(se.suppressed).toBe(err2);
-        }
-      });
-
-      it("should still reject further resolves after disposal throws", () => {
-        class Svc {
-          [Symbol.dispose]() {
-            throw new Error("boom");
-          }
-        }
-        container.register(makeScopedProvider(Svc));
-        const scope = container.createScope();
-        scope.resolve(Svc);
-
-        expect(() => scope.dispose()).toThrow();
-        expect(() => scope.resolve(Svc)).toThrow(
-          "Cannot resolve from a disposed container scope.",
-        );
-      });
+      await scope.dispose();
+      expect(spy).toHaveBeenCalledTimes(1);
     });
 
-    describe("post-dispose guards", () => {
-      it("should throw on resolve after dispose", () => {
-        class Svc {}
-        container.register(makeScopedProvider(Svc));
-        const scope = container.createScope();
-        scope.dispose();
+    it("should dispose async in reverse resolution order", async () => {
+      const order: string[] = [];
 
-        expect(() => scope.resolve(Svc)).toThrow(
-          "Cannot resolve from a disposed container scope.",
-        );
-      });
+      class A {
+        async [Symbol.asyncDispose]() {
+          order.push("A");
+        }
+      }
+      class B {
+        async [Symbol.asyncDispose]() {
+          order.push("B");
+        }
+      }
+      class C {
+        async [Symbol.asyncDispose]() {
+          order.push("C");
+        }
+      }
 
-      it("should throw on register after dispose", () => {
-        const scope = container.createScope();
-        scope.dispose();
+      container.register(makeScopedProvider(A));
+      container.register(makeScopedProvider(B));
+      container.register(makeScopedProvider(C));
 
-        expect(() => scope.register(class X {})).toThrow(
-          "Cannot register on a disposed container scope.",
-        );
-      });
+      const scope = container.createScope();
+      scope.resolve(A);
+      scope.resolve(B);
+      scope.resolve(C);
 
-      it("should throw on createScope after dispose", () => {
-        const scope = container.createScope();
-        scope.dispose();
-
-        expect(() => scope.createScope()).toThrow(
-          "Cannot create a child scope from a disposed container.",
-        );
-      });
+      await scope.dispose();
+      expect(order).toEqual(["C", "B", "A"]);
     });
 
-    describe("scope isolation", () => {
-      it("should not affect the parent container", () => {
-        class Svc {}
-        container.register(Svc);
-        const scope = container.createScope();
-        scope.dispose();
+    it("should chain errors with SuppressedError in dispose", async () => {
+      const err1 = new Error("first");
+      const err2 = new Error("second");
 
-        expect(() => container.resolve(Svc)).not.toThrow();
-      });
+      class A {
+        async [Symbol.asyncDispose]() {
+          throw err1;
+        }
+      }
+      class B {
+        async [Symbol.asyncDispose]() {
+          throw err2;
+        }
+      }
 
-      it("should not affect sibling scopes", () => {
-        class Svc {}
-        container.register(makeScopedProvider(Svc));
-        const scope1 = container.createScope();
-        const scope2 = container.createScope();
+      container.register(makeScopedProvider(A));
+      container.register(makeScopedProvider(B));
 
-        scope1.resolve(Svc);
-        scope1.dispose();
+      const scope = container.createScope();
+      scope.resolve(A);
+      scope.resolve(B);
 
-        expect(() => scope2.resolve(Svc)).not.toThrow();
-      });
+      try {
+        await scope.dispose(); // reverse: B(err2), A(err1)
+        expect.unreachable("should have thrown");
+      } catch (e) {
+        const se = e as SuppressedError;
+        expect(se.error).toBe(err1);
+        expect(se.suppressed).toBe(err2);
+      }
     });
   });
 });
