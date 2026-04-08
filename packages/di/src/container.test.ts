@@ -1322,42 +1322,6 @@ describe("DI Container", () => {
       });
     });
 
-    describe("using / await using", () => {
-      it("should work with using statement", () => {
-        const spy = vi.fn();
-        class Svc {
-          [Symbol.dispose]() {
-            spy();
-          }
-        }
-        container.register(makeScopedProvider(Svc));
-
-        {
-          using scope = container.createScope();
-          scope.resolve(Svc);
-        }
-
-        expect(spy).toHaveBeenCalledTimes(1);
-      });
-
-      it("should work with await using statement", async () => {
-        const spy = vi.fn();
-        class Svc {
-          async [Symbol.asyncDispose]() {
-            spy();
-          }
-        }
-        container.register(makeScopedProvider(Svc));
-
-        {
-          await using scope = container.createScope();
-          scope.resolve(Svc);
-        }
-
-        expect(spy).toHaveBeenCalledTimes(1);
-      });
-    });
-
     describe("scope isolation", () => {
       it("should not affect the parent container", () => {
         class Svc {}

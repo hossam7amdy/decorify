@@ -23,12 +23,15 @@ interface ResolvedEntry<T = any> {
   lifetime: Lifetime;
 }
 
-export class Container implements Resolver, Disposable, AsyncDisposable {
+export class Container implements Resolver {
   private registry = new Map<Token, ResolvedEntry>();
   private instances = new Map<Token, any>();
-  private parent: Container | null = null;
-  private isScoped = false;
   private disposed = false;
+
+  constructor(
+    private parent?: Container,
+    private isScoped = false,
+  ) {}
 
   register<T>(provider: Provider<T>, opts?: { override?: boolean }): void {
     if (this.disposed) {
@@ -165,10 +168,7 @@ export class Container implements Resolver, Disposable, AsyncDisposable {
         "[DI] Cannot create a child scope from a disposed container.",
       );
     }
-    const child = new Container();
-    child.parent = this;
-    child.isScoped = true;
-    return child;
+    return new Container(this, true);
   }
 
   has(token: Token): boolean {
@@ -249,14 +249,6 @@ export class Container implements Resolver, Disposable, AsyncDisposable {
     }
 
     if (hasError) throw error;
-  }
-
-  [Symbol.dispose](): void {
-    this.dispose();
-  }
-
-  [Symbol.asyncDispose](): Promise<void> {
-    return this.disposeAsync();
   }
 
   private lookup(token: Token): ResolvedEntry | undefined {
