@@ -695,37 +695,6 @@ describe("DI Container", () => {
     });
   });
 
-  describe("validate", () => {
-    it("should not throw when all tokens are registered", () => {
-      class A {}
-      class B {}
-      container.register(A);
-      container.register(B);
-      expect(() => container.validate([A, B])).not.toThrow();
-    });
-
-    it("should throw listing one missing token", () => {
-      class A {}
-      class Missing {}
-      container.register(A);
-      expect(() => container.validate([A, Missing])).toThrow(
-        "[DI] Missing registrations: Missing",
-      );
-    });
-
-    it("should throw listing all missing tokens", () => {
-      class A {}
-      class B {}
-      expect(() => container.validate([A, B])).toThrow(
-        "[DI] Missing registrations: A, B",
-      );
-    });
-
-    it("should not throw for empty array", () => {
-      expect(() => container.validate([])).not.toThrow();
-    });
-  });
-
   describe("captive dependency detection", () => {
     it("should throw when singleton depends on transient", () => {
       class Transient {}

@@ -166,14 +166,6 @@ export class Container implements Resolver {
     return this.registry.has(token) || (this.parent?.has(token) ?? false);
   }
 
-  validate(tokens: Token[]): void {
-    const missing = tokens.filter((t) => !this.has(t));
-    if (missing.length > 0) {
-      const names = missing.map((t) => tokenName(t)).join(", ");
-      throw new Error(`[DI] Missing registrations: ${names}`);
-    }
-  }
-
   get isInInjectionContext(): boolean {
     return injectionContext.getStore() !== undefined;
   }
