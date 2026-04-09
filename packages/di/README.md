@@ -211,12 +211,10 @@ container.has(UserService); // true / false
 
 ### `container.dispose()`
 
-Async. Disposes all tracked instances in reverse resolution order. Prefers `[Symbol.asyncDispose]()` over `[Symbol.dispose]()`. Any in-flight `resolveAsync()` calls are awaited before disposal begins, preventing disposal of partially-constructed instances.
+Async. Disposes all tracked instances in reverse resolution order. Any in-flight `resolveAsync()` calls are awaited before disposal begins, preventing disposal of partially-constructed instances.
 
 ```ts
 await container.dispose();
-// or use explicit resource management:
-await using container = new Container();
 ```
 
 Multiple disposal errors are chained as `SuppressedError`.
