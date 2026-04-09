@@ -5,11 +5,6 @@ export type Constructor<T = any> = new (...args: any[]) => T;
 
 export type Token<T = any> = Constructor<T> | InjectionToken<T>;
 
-export type OptionalFactoryDependency<T = any> = {
-  token: Token<T>;
-  optional: boolean;
-};
-
 export type Provider<T = any> =
   | Constructor<T>
   | ClassProvider<T>
@@ -30,8 +25,7 @@ export interface ValueProvider<T = any> {
 
 export interface FactoryProvider<T = any> {
   provide: Token;
-  useFactory: (...args: any[]) => T | Promise<T>;
-  inject?: Array<Token | OptionalFactoryDependency>;
+  useFactory: () => T | Promise<T>;
   lifetime?: Lifetime;
 }
 
