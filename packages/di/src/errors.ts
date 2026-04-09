@@ -11,9 +11,13 @@ export abstract class DIError extends Error {
   }
 }
 
-export class DISuppressedError extends SuppressedError {
-  constructor(error: unknown, suppressed: unknown, message: string) {
-    super(error, suppressed, prefix + message);
+export class DISuppressedError extends DIError {
+  constructor(
+    readonly error: unknown,
+    readonly suppressed: unknown,
+    message: string,
+  ) {
+    super(prefix + message);
     this.name = this.constructor.name;
   }
 }
