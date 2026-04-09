@@ -372,14 +372,15 @@ export class Container implements Resolver {
     ltStack.push({ token, lifetime });
     try {
       if (lifetime !== Lifetime.TRANSIENT) {
-        const promise = this.createInstanceAsync(entry)
-          .then((instance) => {
+        const promise = (async () => {
+          try {
+            const instance = await this.createInstanceAsync(entry);
             this.instances.set(token, instance);
             return instance;
-          })
-          .finally(() => {
+          } finally {
             this.pendingAsync.delete(token);
-          });
+          }
+        })();
         this.pendingAsync.set(token, promise);
         return (await promise) as T;
       }
