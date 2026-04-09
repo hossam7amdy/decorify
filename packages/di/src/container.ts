@@ -18,6 +18,17 @@ import {
   isValueProvider,
   tokenName,
 } from "./utils.js";
+import {
+  AsyncFactoryError,
+  CaptiveDependencyError,
+  CircularDependencyError,
+  ContainerDisposedError,
+  DISuppressedError,
+  DuplicateTokenError,
+  MissingStrategyError,
+  NoProviderError,
+  ScopedResolutionError,
+} from "./errors.js";
 import { Lifetime } from "./lifetime.js";
 
 const SCOPE_RANK: Record<Lifetime, number> = {
@@ -53,16 +64,11 @@ export class Container implements Resolver {
     const token = provider.provide;
 
     if (!hasStrategy(provider)) {
-      throw new Error(
-        `[DI] Provider for "${tokenName(token)}" is missing a strategy. ` +
-          `Specify one of: useClass, useValue, useFactory, or useExisting.`,
-      );
+      throw new MissingStrategyError(token);
     }
 
     if (this.registry.has(token) && !opts?.override) {
-      throw new Error(
-        `[DI] Token "${tokenName(token)}" is already registered. Pass { override: true } to replace it.`,
-      );
+      throw new DuplicateTokenError(token);
     }
 
     const lifetime = this.resolveLifetime(provider);
@@ -94,9 +100,7 @@ export class Container implements Resolver {
   /** @internal — used by inject() and internally for recursive resolution */
   resolveInContext<T>(token: Token<T>): T {
     if (this.disposed) {
-      throw new Error(
-        `[DI] Container is disposed or being disposed. Cannot resolve token "${tokenName(token)}".`,
-      );
+      throw new ContainerDisposedError(token);
     }
 
     if (this.instances.has(token)) {
@@ -111,9 +115,7 @@ export class Container implements Resolver {
     }
 
     if (!entry) {
-      throw new Error(
-        `[DI] No provider registered for ${tokenName(token)}. Did you forget @Injectable() or container.register()?`,
-      );
+      throw new NoProviderError(token);
     }
 
     const lifetime = entry.lifetime;
@@ -130,9 +132,7 @@ export class Container implements Resolver {
     }
 
     if (lifetime === Lifetime.SCOPED && !this.isScoped) {
-      throw new Error(
-        `[DI] Cannot resolve scoped token "${tokenName(token)}" from root container. Use createScope().`,
-      );
+      throw new ScopedResolutionError(token);
     }
 
     const ctx = injectionContext.getStore()!;
@@ -144,7 +144,7 @@ export class Container implements Resolver {
       ]
         .map((t) => tokenName(t))
         .join(" → ");
-      throw new Error(`[DI] Circular dependency detected: ${cycle}`);
+      throw new CircularDependencyError(cycle);
     }
 
     if (isExistingProvider(entry.provider)) {
@@ -160,8 +160,11 @@ export class Container implements Resolver {
     if (ltStack.length > 0) {
       const parent = ltStack[ltStack.length - 1]!;
       if (SCOPE_RANK[parent.lifetime] < SCOPE_RANK[lifetime]) {
-        throw new Error(
-          `[DI] Captive dependency detected: ${parent.lifetime} "${tokenName(parent.token)}" depends on ${lifetime} "${tokenName(token)}". A longer-lived service must not capture a shorter-lived one.`,
+        throw new CaptiveDependencyError(
+          parent.lifetime,
+          parent.token,
+          lifetime,
+          token,
         );
       }
     }
@@ -216,7 +219,7 @@ export class Container implements Resolver {
         }
       } catch (err) {
         error = hasError
-          ? new SuppressedError(
+          ? new DISuppressedError(
               err,
               error,
               "An error was suppressed during disposal.",
@@ -285,19 +288,14 @@ export class Container implements Resolver {
     }
     const result = provider.useFactory(...args);
     if (result instanceof Promise) {
-      throw new Error(
-        `[DI] Factory for "${tokenName((provider as any).provide)}" returned a Promise. ` +
-          `Use resolveAsync() instead.`,
-      );
+      throw new AsyncFactoryError(provider.provide);
     }
     return result as T;
   }
 
   private async resolveInContextAsync<T>(token: Token<T>): Promise<T> {
     if (this.disposed) {
-      throw new Error(
-        `[DI] Container is disposed or being disposed. Cannot resolve token "${tokenName(token)}".`,
-      );
+      throw new ContainerDisposedError(token);
     }
 
     if (this.instances.has(token)) {
@@ -316,9 +314,7 @@ export class Container implements Resolver {
     }
 
     if (!entry) {
-      throw new Error(
-        `[DI] No provider registered for ${tokenName(token)}. Did you forget @Injectable() or container.register()?`,
-      );
+      throw new NoProviderError(token);
     }
 
     const lifetime = entry.lifetime;
@@ -335,9 +331,7 @@ export class Container implements Resolver {
     }
 
     if (lifetime === Lifetime.SCOPED && !this.isScoped) {
-      throw new Error(
-        `[DI] Cannot resolve scoped token "${tokenName(token)}" from root container. Use createScope().`,
-      );
+      throw new ScopedResolutionError(token);
     }
 
     const ctx = injectionContext.getStore()!;
@@ -349,7 +343,7 @@ export class Container implements Resolver {
       ]
         .map((t) => tokenName(t))
         .join(" → ");
-      throw new Error(`[DI] Circular dependency detected: ${cycle}`);
+      throw new CircularDependencyError(cycle);
     }
 
     if (isExistingProvider(entry.provider)) {
@@ -365,8 +359,11 @@ export class Container implements Resolver {
     if (ltStack.length > 0) {
       const parent = ltStack[ltStack.length - 1]!;
       if (SCOPE_RANK[parent.lifetime] < SCOPE_RANK[lifetime]) {
-        throw new Error(
-          `[DI] Captive dependency detected: ${parent.lifetime} "${tokenName(parent.token)}" depends on ${lifetime} "${tokenName(token)}". A longer-lived service must not capture a shorter-lived one.`,
+        throw new CaptiveDependencyError(
+          parent.lifetime,
+          parent.token,
+          lifetime,
+          token,
         );
       }
     }

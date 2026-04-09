@@ -22,3 +22,16 @@ export { inject, injectionContext as _injectionContext } from "./context.js";
 export { Injectable, Inject } from "./decorators.js";
 
 export { Container } from "./container.js";
+
+export {
+  DIError,
+  DISuppressedError,
+  MissingStrategyError,
+  DuplicateTokenError,
+  ContainerDisposedError,
+  NoProviderError,
+  ScopedResolutionError,
+  CircularDependencyError,
+  CaptiveDependencyError,
+  AsyncFactoryError,
+} from "./errors.js";
