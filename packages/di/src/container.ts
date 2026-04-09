@@ -107,6 +107,10 @@ export class Container implements Resolver {
       return this.instances.get(token);
     }
 
+    if (this.pendingAsync.has(token)) {
+      throw new AsyncFactoryError(token);
+    }
+
     let entry = this.lookup(token);
 
     if (!entry) {
