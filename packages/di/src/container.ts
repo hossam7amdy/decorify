@@ -387,14 +387,8 @@ export class Container implements Resolver {
       return p.useValue;
     }
     if (isFactoryProvider(p)) {
-      return this.buildFactoryInstanceAsync<T>(p);
+      return await p.useFactory();
     }
     return new (p as ClassProvider<T>).useClass();
-  }
-
-  private async buildFactoryInstanceAsync<T>(
-    p: FactoryProvider<T>,
-  ): Promise<T> {
-    return await p.useFactory();
   }
 }
