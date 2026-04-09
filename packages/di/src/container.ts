@@ -352,7 +352,7 @@ export class Container implements Resolver {
       throw new Error(`[DI] Circular dependency detected: ${cycle}`);
     }
 
-    if ("useExisting" in entry.provider) {
+    if (isExistingProvider(entry.provider)) {
       ctx.resolutionStack.push(token);
       try {
         return await this.resolveInContextAsync(entry.provider.useExisting);
@@ -395,10 +395,10 @@ export class Container implements Resolver {
 
   private async createInstanceAsync<T>(entry: ResolvedEntry<T>): Promise<T> {
     const p = entry.provider;
-    if ("useValue" in p) {
+    if (isValueProvider(p)) {
       return p.useValue;
     }
-    if ("useFactory" in p) {
+    if (isFactoryProvider(p)) {
       return this.buildFactoryInstanceAsync<T>(p);
     }
     return new (p as ClassProvider<T>).useClass();
