@@ -1050,6 +1050,8 @@ describe("DI Container", () => {
         useFactory: async () => `${inject(A)}+${inject(B)}`,
       });
 
+      // Prime async deps first — inject() is sync, so A and B must be cached
+      // as singletons before the RESULT factory can call inject(A) / inject(B).
       await container.resolveAsync(A);
       await container.resolveAsync(B);
       expect(await container.resolveAsync(RESULT)).toBe("async-a+async-b");
