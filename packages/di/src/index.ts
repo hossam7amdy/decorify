@@ -16,7 +16,11 @@ export { InjectionToken } from "./injection-token.js";
 
 export { DI_INJECTABLE, DI_INJECT_TOKENS, DI_LIFETIME } from "./metadata.js";
 
-export { inject, injectAsync, injectionContext as _injectionContext } from "./context.js";
+export {
+  inject,
+  injectAsync,
+  injectionContext as _injectionContext,
+} from "./context.js";
 
 export { Injectable, Inject } from "./decorators.js";
 

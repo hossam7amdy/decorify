@@ -288,7 +288,13 @@ import type {
   ExistingProvider,
 } from "@decorify/di";
 
-import { InjectionToken, Lifetime, Container, inject, injectAsync } from "@decorify/di";
+import {
+  InjectionToken,
+  Lifetime,
+  Container,
+  inject,
+  injectAsync,
+} from "@decorify/di";
 ```
 
 ## License
