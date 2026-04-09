@@ -14,7 +14,6 @@ import {
   isConstructorProvider,
   isExistingProvider,
   isFactoryProvider,
-  isOptionalFactoryDependency,
   isValueProvider,
   tokenName,
 } from "./utils.js";
@@ -277,20 +276,7 @@ export class Container implements Resolver {
   }
 
   private buildFactoryInstance<T>(provider: FactoryProvider<T>): T {
-    const deps = provider.inject ?? [];
-    const args: unknown[] = [];
-    for (const dep of deps) {
-      if (isOptionalFactoryDependency(dep)) {
-        if (dep.optional && !this.has(dep.token)) {
-          args.push(undefined);
-        } else {
-          args.push(this.resolveInContext(dep.token));
-        }
-      } else {
-        args.push(this.resolveInContext(dep as Token));
-      }
-    }
-    const result = provider.useFactory(...args);
+    const result = provider.useFactory();
     if (result instanceof Promise) {
       throw new AsyncFactoryError(provider.provide);
     }
@@ -409,21 +395,6 @@ export class Container implements Resolver {
   private async buildFactoryInstanceAsync<T>(
     p: FactoryProvider<T>,
   ): Promise<T> {
-    const deps = p.inject ?? [];
-    const args: unknown[] = [];
-
-    for (const dep of deps) {
-      if (isOptionalFactoryDependency(dep)) {
-        if (dep.optional && !this.has(dep.token)) {
-          args.push(undefined);
-        } else {
-          args.push(await this.resolveInContextAsync(dep.token));
-        }
-      } else {
-        args.push(await this.resolveInContextAsync(dep as Token));
-      }
-    }
-
-    return await p.useFactory(...args);
+    return await p.useFactory();
   }
 }
