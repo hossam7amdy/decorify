@@ -33,4 +33,5 @@ export {
   CircularDependencyError,
   CaptiveDependencyError,
   AsyncFactoryError,
+  InjectionContextError,
 } from "./errors.js";

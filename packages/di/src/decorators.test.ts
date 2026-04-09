@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { Container } from "./container.js";
 import { Injectable, Inject, inject } from "./decorators.js";
+import { InjectionContextError } from "./errors.js";
 
 describe("DI Decorators", () => {
   let container: Container;
@@ -41,9 +42,7 @@ describe("DI Decorators", () => {
 
   it("inject() should throw if called outside injection context", () => {
     class Dep {}
-    expect(() => inject(Dep)).toThrow(
-      "inject() called outside of an injection context",
-    );
+    expect(() => inject(Dep)).toThrow(InjectionContextError);
   });
 
   it("@Inject should resolve dependency as field initializer", () => {
