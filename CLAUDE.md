@@ -71,7 +71,7 @@ Each route builds a pipeline: **guards → middleware chain (Koa-style onion) �
 
 ### Dependency Injection (`packages/di/`)
 
-`Container` class (instantiate directly; no global instance exported). `@Injectable()` registers a class and supports an optional `{ lifetime }` option. Resolution is lazy — instances are created on first `resolve()` call. Two injection styles: `inject(Token)` (functional, via `context.ts`) and `@Inject(Token)` (field decorator). The container uses `AsyncLocalStorage` (`injectionContext`) to propagate the resolution context. Lifetimes: `Lifetime.SINGLETON` (default), `Lifetime.TRANSIENT`, `Lifetime.SCOPED`. Scoped containers are created with `createScope()`. Async factories are not supported — factories must return synchronously.
+`Container` class (instantiate directly; no global instance exported). `@Injectable()` registers a class and supports an optional `{ lifetime }` option. Resolution is lazy — instances are created on first `resolve()` call. Two injection styles: `inject(Token)` (functional, via `context.ts`) and `@Inject(Token)` (field decorator). The container uses `AsyncLocalStorage` (`injectionContext`) to propagate the resolution context. Lifetimes: `Lifetime.SINGLETON` (default), `Lifetime.TRANSIENT`, `Lifetime.SCOPED`. Scoped containers are created with `createScope()`. Async factories are supported via `container.resolveAsync(token)` — `FactoryProvider.useFactory` may return `T | Promise<T>`. The sync `resolve()` still throws if a factory returns a Promise. Resolved async singletons are cached and subsequently available via sync `resolve()`.
 
 ### Adapter Pattern
 
