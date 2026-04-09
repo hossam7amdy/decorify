@@ -559,7 +559,7 @@ describe("DI Container", () => {
       expect(() => container.resolve(token)).toThrow("returned a Promise");
     });
 
-    it("should pass resolved inject tokens as factory arguments", () => {
+    it("should resolve deps using inject() inside factory", () => {
       const A = new InjectionToken<string>("a");
       const B = new InjectionToken<number>("b");
       const RESULT = new InjectionToken<string>("result");
@@ -568,68 +568,24 @@ describe("DI Container", () => {
       container.register({ provide: B, useValue: 42 });
       container.register({
         provide: RESULT,
-        useFactory: (a: string, b: number) => `${a}-${b}`,
-        inject: [A, B],
+        useFactory: () => `${inject(A)}-${inject(B)}`,
       });
 
       expect(container.resolve(RESULT)).toBe("hello-42");
     });
 
-    it("should resolve OptionalFactoryDependency when token is registered", () => {
-      const DEP = new InjectionToken<string>("dep");
-      const RESULT = new InjectionToken<string>("result");
-
-      container.register({ provide: DEP, useValue: "present" });
-      container.register({
-        provide: RESULT,
-        useFactory: (d: string) => `got-${d}`,
-        inject: [{ token: DEP, optional: true }],
-      });
-
-      expect(container.resolve(RESULT)).toBe("got-present");
-    });
-
-    it("should pass undefined for optional dependency when token is not registered", () => {
-      const MISSING = new InjectionToken<string>("missing");
-      const RESULT = new InjectionToken<string | undefined>("result");
-
-      container.register({
-        provide: RESULT,
-        useFactory: (d?: string) => d ?? "fallback",
-        inject: [{ token: MISSING, optional: true }],
-      });
-
-      expect(container.resolve(RESULT)).toBe("fallback");
-    });
-
-    it("should throw for missing non-optional inject token", () => {
+    it("should throw when inject() inside factory targets unregistered token", () => {
       const MISSING = new InjectionToken<string>("missing");
       const TOKEN = new InjectionToken<string>("result");
 
       container.register({
         provide: TOKEN,
-        useFactory: (d: string) => d,
-        inject: [MISSING],
+        useFactory: () => inject(MISSING),
       });
 
       expect(() => container.resolve(TOKEN)).toThrow(
         "No provider registered for InjectionToken(missing)",
       );
-    });
-
-    it("should handle mix of plain tokens and optional dependencies", () => {
-      const A = new InjectionToken<string>("a");
-      const B = new InjectionToken<string>("b");
-      const RESULT = new InjectionToken<string>("result");
-
-      container.register({ provide: A, useValue: "alpha" });
-      container.register({
-        provide: RESULT,
-        useFactory: (a: string, b?: string) => `${a}-${b ?? "none"}`,
-        inject: [A, { token: B, optional: true }],
-      });
-
-      expect(container.resolve(RESULT)).toBe("alpha-none");
     });
   });
 
