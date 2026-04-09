@@ -20,16 +20,43 @@ Extend the `Resolver` interface to expose `resolveInContextAsync`. Add `injectAs
 
 `Resolver` is not exported publicly (it is `@internal`), so extending it is not a breaking change.
 
+Also fixes a pre-existing inconsistency: `inject()` currently throws a plain `Error` while all other DI errors extend `DIError`. A new `InjectionContextError` class unifies both.
+
 ## Changes
 
-### 1. `packages/di/src/context.ts`
+### 1. `packages/di/src/errors.ts`
 
-Extend `Resolver` and add `injectAsync()`:
+Add `InjectionContextError` following the `DIError` pattern:
 
 ```ts
+export class InjectionContextError extends DIError {
+  constructor(fn: "inject" | "injectAsync") {
+    super(
+      `${fn}() called outside of an injection context. ` +
+        `It can only be used inside a class constructor or factory function ` +
+        `that is being resolved by the DI container.`,
+    );
+  }
+}
+```
+
+### 2. `packages/di/src/context.ts`
+
+Extend `Resolver`, fix `inject()` to use `InjectionContextError`, and add `injectAsync()`:
+
+```ts
+import { InjectionContextError } from "./errors.js";
+
 export interface Resolver {
   resolveInContext<T>(token: Token<T>): T;
   resolveInContextAsync<T>(token: Token<T>): Promise<T>; // NEW
+}
+
+// Updated: was throwing plain Error, now uses InjectionContextError
+export function inject<T>(token: Token<T>): T {
+  const ctx = injectionContext.getStore();
+  if (!ctx) throw new InjectionContextError("inject");
+  return ctx.container.resolveInContext(token);
 }
 
 /**
@@ -46,34 +73,27 @@ export interface Resolver {
  */
 export async function injectAsync<T>(token: Token<T>): Promise<T> {
   const ctx = injectionContext.getStore();
-  if (!ctx) {
-    throw new Error(
-      `injectAsync() called outside of an injection context. ` +
-        `It can only be used inside an async factory function ` +
-        `that is being resolved by the DI container.`,
-    );
-  }
+  if (!ctx) throw new InjectionContextError("injectAsync");
   return ctx.container.resolveInContextAsync(token);
 }
 ```
 
 `Container` already implements `resolveInContextAsync` as a public method — no changes to `container.ts`.
 
-### 2. `packages/di/src/index.ts`
+### 3. `packages/di/src/index.ts`
 
-Export `injectAsync` alongside `inject`:
+Export `injectAsync` and `InjectionContextError`:
 
 ```ts
-export {
-  inject,
-  injectAsync,
-  injectionContext as _injectionContext,
-} from "./context.js";
+export { inject, injectAsync, injectionContext as _injectionContext } from "./context.js";
+
+// Add to the errors export block:
+export { ..., InjectionContextError } from "./errors.js";
 ```
 
-### 3. Tests (`packages/di/src/container.test.ts`)
+### 4. Tests (`packages/di/src/container.test.ts`)
 
-New `"injectAsync()"` describe block with three cases:
+New `"injectAsync()"` describe block with three cases. Also update the existing `inject()` out-of-context test to assert `InjectionContextError` instead of a plain `Error`:
 
 ```ts
 describe("injectAsync()", () => {
@@ -110,18 +130,15 @@ describe("injectAsync()", () => {
     expect(calls).toBe(1);
   });
 
-  it("should throw when called outside of an injection context", async () => {
-    const TOKEN = new InjectionToken<string>("tok");
-    container.register({ provide: TOKEN, useValue: "v" });
-
-    await expect(injectAsync(TOKEN)).rejects.toThrow(
-      "injectAsync() called outside of an injection context",
+  it("should throw InjectionContextError when called outside of an injection context", async () => {
+    await expect(injectAsync(new InjectionToken("tok"))).rejects.toThrow(
+      InjectionContextError,
     );
   });
 });
 ```
 
-### 4. `packages/di/README.md`
+### 5. `packages/di/README.md`
 
 Add `injectAsync()` subsection after the existing `inject()` section:
 
