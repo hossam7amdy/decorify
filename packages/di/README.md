@@ -58,6 +58,26 @@ export class UserService {
 }
 ```
 
+### `injectAsync()` — async functional injection
+
+Resolves a dependency asynchronously. Use this inside `async` factory functions when the dependency has an async factory or is a transient provider. Cannot be used in class constructors.
+
+```ts
+import { injectAsync } from "@decorify/di";
+
+// Async singleton dep — no pre-priming required
+container.register({
+  provide: USER_REPO,
+  useFactory: async () => new UserRepository(await injectAsync(DATABASE)),
+});
+
+// Transient async dep — fresh instance per resolution
+container.register({
+  provide: REQUEST_HANDLER,
+  useFactory: async () => new Handler(await injectAsync(TRANSIENT_LOGGER)),
+});
+```
+
 ### `@Inject` — field decorator injection
 
 ```ts
@@ -268,7 +288,7 @@ import type {
   ExistingProvider,
 } from "@decorify/di";
 
-import { InjectionToken, Lifetime, Container } from "@decorify/di";
+import { InjectionToken, Lifetime, Container, inject, injectAsync } from "@decorify/di";
 ```
 
 ## License

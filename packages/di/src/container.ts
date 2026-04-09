@@ -283,7 +283,8 @@ export class Container implements Resolver {
     return result as T;
   }
 
-  private async resolveInContextAsync<T>(token: Token<T>): Promise<T> {
+  /** @internal */
+  public async resolveInContextAsync<T>(token: Token<T>): Promise<T> {
     if (this.disposed) {
       throw new ContainerDisposedError(token);
     }

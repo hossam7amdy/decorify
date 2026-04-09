@@ -2,7 +2,8 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { Container } from "./container.js";
 import { InjectionToken } from "./injection-token.js";
 import { Lifetime } from "./lifetime.js";
-import { inject } from "./context.js";
+import { inject, injectAsync } from "./context.js";
+import { InjectionContextError } from "./errors.js";
 
 describe("DI Container", () => {
   let container: Container;
@@ -1248,6 +1249,50 @@ describe("DI Container", () => {
       // Unblock the factory and await completion to avoid dangling promises.
       release();
       await inFlight;
+    });
+  });
+
+  describe("injectAsync()", () => {
+    it("should resolve an async singleton dep without pre-priming", async () => {
+      const DB = new InjectionToken<string>("db");
+      const REPO = new InjectionToken<string>("repo");
+
+      container.register({
+        provide: DB,
+        useFactory: async () => "db-instance",
+      });
+      container.register({
+        provide: REPO,
+        useFactory: async () => `repo(${await injectAsync(DB)})`,
+      });
+
+      expect(await container.resolveAsync(REPO)).toBe("repo(db-instance)");
+    });
+
+    it("should resolve a transient async dep (never cached) inside a factory", async () => {
+      const DEP = new InjectionToken<number>("dep");
+      const RESULT = new InjectionToken<number>("result");
+      let calls = 0;
+
+      container.register({
+        provide: DEP,
+        useFactory: async () => ++calls,
+        lifetime: Lifetime.TRANSIENT,
+      });
+      container.register({
+        provide: RESULT,
+        useFactory: async () => await injectAsync(DEP),
+        lifetime: Lifetime.TRANSIENT,
+      });
+      const a = await container.resolveAsync(RESULT);
+      expect(a).toBe(1);
+      expect(calls).toBe(1);
+    });
+
+    it("should throw InjectionContextError when called outside of an injection context", async () => {
+      await expect(injectAsync(new InjectionToken("tok"))).rejects.toThrow(
+        InjectionContextError,
+      );
     });
   });
 });
