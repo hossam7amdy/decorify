@@ -19,6 +19,9 @@
   "sideEffects": [
     "./dist/symbol-metadata-polyfill.js"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc --build",
     "clean": "node --eval \"fs.rmSync('dist', { recursive: true, force: true }); fs.rmSync('tsconfig.tsbuildinfo', { force: true })\"",

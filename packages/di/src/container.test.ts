@@ -1293,5 +1293,31 @@ describe("DI Container", () => {
         "Use resolveAsync() instead",
       );
     });
+
+    it("should throw in sync resolve() when an async factory is currently in-flight", async () => {
+      const token = new InjectionToken<string>("inflight");
+      let release!: () => void;
+      const gate = new Promise<void>((res) => (release = res));
+
+      container.register({
+        provide: token,
+        useFactory: async () => {
+          await gate; // block until we call release()
+          return "done";
+        },
+      });
+
+      // Start the async creation but do not await it yet.
+      const inFlight = container.resolveAsync(token);
+
+      // Synchronous resolve() while the async factory is still in-flight should throw.
+      expect(() => container.resolve(token)).toThrow(
+        "Use resolveAsync() instead",
+      );
+
+      // Unblock the factory and await completion to avoid dangling promises.
+      release();
+      await inFlight;
+    });
   });
 });
