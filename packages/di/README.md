@@ -116,26 +116,16 @@ container.register({
   },
 });
 
-// Factory provider with injected dependencies
+// Factory provider with injected dependencies (use inject() inside)
 container.register({
   provide: LOGGER,
-  useFactory: (config: AppConfig) => new Logger({ level: config.logLevel }),
-  inject: [APP_CONFIG],
+  useFactory: () => new Logger({ level: inject(APP_CONFIG).logLevel }),
 });
 
-// Async factory with injected dependencies (sync or async)
+// Async factory with injected dependencies
 container.register({
   provide: USER_REPO,
-  useFactory: async (db: Database) => new UserRepository(db),
-  inject: [DATABASE],
-});
-
-// Factory provider with optional dependency
-container.register({
-  provide: LOGGER,
-  useFactory: (config?: AppConfig) =>
-    new Logger({ level: config?.logLevel ?? "info" }),
-  inject: [{ token: APP_CONFIG, optional: true }],
+  useFactory: async () => new UserRepository(inject(DATABASE)),
 });
 
 // Alias provider
@@ -276,7 +266,6 @@ import type {
   ValueProvider,
   FactoryProvider,
   ExistingProvider,
-  OptionalFactoryDependency,
 } from "@decorify/di";
 
 import { InjectionToken, Lifetime, Container } from "@decorify/di";
