@@ -1,15 +1,23 @@
 import type {
-  ClassProvider,
-  Constructor,
-  FactoryProvider,
-  OptionalFactoryDependency,
-  Provider,
   Token,
+  Provider,
+  Constructor,
+  ClassProvider,
+  FactoryProvider,
 } from "./types.js";
 import { DI_INJECTABLE, DI_LIFETIME } from "./metadata.js";
 import { injectionContext } from "./context.js";
 import type { Resolver } from "./context.js";
-import { tokenName } from "./utils.js";
+import {
+  hasStrategy,
+  isClassProvider,
+  isConstructorProvider,
+  isExistingProvider,
+  isFactoryProvider,
+  isOptionalFactoryDependency,
+  isValueProvider,
+  tokenName,
+} from "./utils.js";
 import { Lifetime } from "./lifetime.js";
 
 const SCOPE_RANK: Record<Lifetime, number> = {
@@ -42,12 +50,7 @@ export class Container implements Resolver {
 
     const token = provider.provide;
 
-    const hasStrategy =
-      "useClass" in provider ||
-      "useValue" in provider ||
-      "useFactory" in provider ||
-      "useExisting" in provider;
-    if (!hasStrategy) {
+    if (!hasStrategy(provider)) {
       throw new Error(
         `[DI] Provider for "${tokenName(token)}" is missing a strategy. ` +
           `Specify one of: useClass, useValue, useFactory, or useExisting.`,
@@ -60,7 +63,7 @@ export class Container implements Resolver {
       );
     }
 
-    const lifetime = this.inferLifetime(provider) ?? Lifetime.SINGLETON;
+    const lifetime = this.resolveLifetime(provider);
     this.registry.set(token, { provider: provider, lifetime });
   }
 
@@ -125,7 +128,7 @@ export class Container implements Resolver {
       throw new Error(`[DI] Circular dependency detected: ${cycle}`);
     }
 
-    if ("useExisting" in entry.provider) {
+    if (isExistingProvider(entry.provider)) {
       ctx.resolutionStack.push(token);
       try {
         return this.resolveInContext(entry.provider.useExisting);
@@ -209,18 +212,20 @@ export class Container implements Resolver {
     return this.registry.get(token) ?? this.parent?.lookup(token);
   }
 
-  private inferLifetime(provider: Provider): Lifetime | undefined {
-    if (typeof provider === "function") {
-      return (provider as any)[Symbol.metadata]?.[DI_LIFETIME];
+  private resolveLifetime(provider: Provider): Lifetime {
+    let lifetime: Lifetime | undefined;
+    if (isConstructorProvider(provider)) {
+      lifetime = (provider as any)[Symbol.metadata]?.[DI_LIFETIME];
     }
-    if ("useClass" in provider) {
-      const ctor = provider.useClass ?? {};
-      return provider.lifetime ?? (ctor as any)[Symbol.metadata]?.[DI_LIFETIME];
+    if (isClassProvider(provider)) {
+      const Class = provider.useClass;
+      lifetime =
+        provider.lifetime ?? (Class as any)[Symbol.metadata]?.[DI_LIFETIME];
     }
-    if ("useFactory" in provider) {
-      return provider.lifetime;
+    if (isFactoryProvider(provider)) {
+      lifetime = provider.lifetime;
     }
-    return undefined;
+    return lifetime ?? Lifetime.SINGLETON;
   }
 
   private tryAutoRegister<T>(token: Token<T>): void {
@@ -232,39 +237,32 @@ export class Container implements Resolver {
 
   private createInstance<T>(entry: ResolvedEntry<T>): T {
     const p = entry.provider;
-    if ("useValue" in p) return p.useValue;
-    if ("useFactory" in p) {
-      const deps = (p as FactoryProvider).inject;
-      const args: unknown[] = [];
-      if (deps && deps.length > 0) {
-        for (const dep of deps) {
-          if (
-            typeof dep === "object" &&
-            dep !== null &&
-            "token" in dep &&
-            "optional" in dep
-          ) {
-            const optDep = dep as OptionalFactoryDependency;
-            if (optDep.optional && !this.has(optDep.token)) {
-              args.push(undefined);
-            } else {
-              args.push(this.resolveInContext(optDep.token));
-            }
-          } else {
-            args.push(this.resolveInContext(dep as Token));
-          }
+    if (isValueProvider(p)) return p.useValue;
+    if (isFactoryProvider(p)) return this.buildFactoryInstance(p);
+    return new (p as ClassProvider<T>).useClass();
+  }
+
+  private buildFactoryInstance<T>(provider: FactoryProvider<T>): T {
+    const deps = provider.inject ?? [];
+    const args: unknown[] = [];
+    for (const dep of deps) {
+      if (isOptionalFactoryDependency(dep)) {
+        if (dep.optional && !this.has(dep.token)) {
+          args.push(undefined);
+        } else {
+          args.push(this.resolveInContext(dep.token));
         }
+      } else {
+        args.push(this.resolveInContext(dep as Token));
       }
-      const result = p.useFactory(...args);
-      if (result instanceof Promise) {
-        throw new Error(
-          `[DI] Factory for "${tokenName((p as any).provide)}" returned a Promise. ` +
-            `Async factories are not supported.`,
-        );
-      }
-      return result as T;
     }
-    const ctor: Constructor<T> = (p as ClassProvider<T>).useClass;
-    return new ctor();
+    const result = provider.useFactory(...args);
+    if (result instanceof Promise) {
+      throw new Error(
+        `[DI] Factory for "${tokenName((provider as any).provide)}" returned a Promise. ` +
+          `Async factories are not supported.`,
+      );
+    }
+    return result as T;
   }
 }

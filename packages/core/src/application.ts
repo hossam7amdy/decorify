@@ -44,7 +44,7 @@ export class Application {
   }
 
   register<T>(...providers: Provider<T>[]): this {
-    this.container.registerMany(providers);
+    providers.forEach((provider) => this.container.register(provider));
     return this;
   }
 
