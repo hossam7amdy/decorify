@@ -5,8 +5,8 @@ export type Constructor<T = any> = new (...args: any[]) => T;
 
 export type Token<T = any> = Constructor<T> | InjectionToken<T>;
 
-export type OptionalFactoryDependency = {
-  token: Token;
+export type OptionalFactoryDependency<T = any> = {
+  token: Token<T>;
   optional: boolean;
 };
 

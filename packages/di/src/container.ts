@@ -1,15 +1,23 @@
 import type {
-  ClassProvider,
-  Constructor,
-  FactoryProvider,
-  OptionalFactoryDependency,
-  Provider,
   Token,
+  Provider,
+  Constructor,
+  ClassProvider,
+  FactoryProvider,
 } from "./types.js";
 import { DI_INJECTABLE, DI_LIFETIME } from "./metadata.js";
 import { injectionContext } from "./context.js";
 import type { Resolver } from "./context.js";
-import { tokenName } from "./utils.js";
+import {
+  hasStrategy,
+  isClassProvider,
+  isConstructorProvider,
+  isExistingProvider,
+  isFactoryProvider,
+  isOptionalFactoryDependency,
+  isValueProvider,
+  tokenName,
+} from "./utils.js";
 import { Lifetime } from "./lifetime.js";
 
 const SCOPE_RANK: Record<Lifetime, number> = {
@@ -43,12 +51,7 @@ export class Container implements Resolver {
 
     const token = provider.provide;
 
-    const hasStrategy =
-      "useClass" in provider ||
-      "useValue" in provider ||
-      "useFactory" in provider ||
-      "useExisting" in provider;
-    if (!hasStrategy) {
+    if (!hasStrategy(provider)) {
       throw new Error(
         `[DI] Provider for "${tokenName(token)}" is missing a strategy. ` +
           `Specify one of: useClass, useValue, useFactory, or useExisting.`,
@@ -137,7 +140,7 @@ export class Container implements Resolver {
       throw new Error(`[DI] Circular dependency detected: ${cycle}`);
     }
 
-    if ("useExisting" in entry.provider) {
+    if (isExistingProvider(entry.provider)) {
       ctx.resolutionStack.push(token);
       try {
         return this.resolveInContext(entry.provider.useExisting);
@@ -170,7 +173,116 @@ export class Container implements Resolver {
     }
   }
 
-  /** @internal — async counterpart to resolveInContext */
+  createScope(): Container {
+    return new Container(this, true);
+  }
+
+  has(token: Token): boolean {
+    return this.registry.has(token) || (this.parent?.has(token) ?? false);
+  }
+
+  get isInInjectionContext(): boolean {
+    return injectionContext.getStore() !== undefined;
+  }
+
+  async dispose(): Promise<void> {
+    if (this.pendingAsync.size > 0) {
+      await Promise.allSettled(this.pendingAsync.values());
+    }
+
+    const instances = [...this.instances.values()].reverse();
+    this.clear();
+
+    let error: unknown;
+    let hasError = false;
+
+    for (const instance of instances) {
+      if (instance == null) continue;
+      try {
+        if (typeof instance[Symbol.asyncDispose] === "function") {
+          await instance[Symbol.asyncDispose]();
+        } else if (typeof instance[Symbol.dispose] === "function") {
+          instance[Symbol.dispose]();
+        }
+      } catch (err) {
+        error = hasError
+          ? new SuppressedError(
+              err,
+              error,
+              "An error was suppressed during disposal.",
+            )
+          : err;
+        hasError = true;
+      }
+    }
+
+    if (hasError) throw error;
+  }
+
+  private clear(): void {
+    this.instances.clear();
+    this.registry.clear();
+    this.pendingAsync.clear();
+  }
+
+  private lookup(token: Token): ResolvedEntry | undefined {
+    return this.registry.get(token) ?? this.parent?.lookup(token);
+  }
+
+  private resolveLifetime(provider: Provider): Lifetime {
+    let lifetime: Lifetime | undefined;
+    if (isConstructorProvider(provider)) {
+      lifetime = (provider as any)[Symbol.metadata]?.[DI_LIFETIME];
+    }
+    if (isClassProvider(provider)) {
+      const Class = provider.useClass;
+      lifetime =
+        provider.lifetime ?? (Class as any)[Symbol.metadata]?.[DI_LIFETIME];
+    }
+    if (isFactoryProvider(provider)) {
+      lifetime = provider.lifetime;
+    }
+    return lifetime ?? Lifetime.SINGLETON;
+  }
+
+  private tryAutoRegister<T>(token: Token<T>): void {
+    if (typeof token !== "function") return;
+    const meta = (token as any)[Symbol.metadata];
+    if (!meta?.[DI_INJECTABLE]) return;
+    this.register(token as Constructor<T>);
+  }
+
+  private createInstance<T>(entry: ResolvedEntry<T>): T {
+    const p = entry.provider;
+    if (isValueProvider(p)) return p.useValue;
+    if (isFactoryProvider(p)) return this.buildFactoryInstance(p);
+    return new (p as ClassProvider<T>).useClass();
+  }
+
+  private buildFactoryInstance<T>(provider: FactoryProvider<T>): T {
+    const deps = provider.inject ?? [];
+    const args: unknown[] = [];
+    for (const dep of deps) {
+      if (isOptionalFactoryDependency(dep)) {
+        if (dep.optional && !this.has(dep.token)) {
+          args.push(undefined);
+        } else {
+          args.push(this.resolveInContext(dep.token));
+        }
+      } else {
+        args.push(this.resolveInContext(dep as Token));
+      }
+    }
+    const result = provider.useFactory(...args);
+    if (result instanceof Promise) {
+      throw new Error(
+        `[DI] Factory for "${tokenName((provider as any).provide)}" returned a Promise. ` +
+          `Use resolveAsync() instead.`,
+      );
+    }
+    return result as T;
+  }
+
   private async resolveInContextAsync<T>(token: Token<T>): Promise<T> {
     if (this.instances.has(token)) {
       return this.instances.get(token);
@@ -265,120 +377,6 @@ export class Container implements Resolver {
     }
   }
 
-  createScope(): Container {
-    return new Container(this, true);
-  }
-
-  has(token: Token): boolean {
-    return this.registry.has(token) || (this.parent?.has(token) ?? false);
-  }
-
-  get isInInjectionContext(): boolean {
-    return injectionContext.getStore() !== undefined;
-  }
-
-  async dispose(): Promise<void> {
-    if (this.pendingAsync.size > 0) {
-      await Promise.allSettled(this.pendingAsync.values());
-    }
-
-    const instances = [...this.instances.values()].reverse();
-    this.clear();
-
-    let error: unknown;
-    let hasError = false;
-
-    for (const instance of instances) {
-      if (instance == null) continue;
-      try {
-        if (typeof instance[Symbol.asyncDispose] === "function") {
-          await instance[Symbol.asyncDispose]();
-        } else if (typeof instance[Symbol.dispose] === "function") {
-          instance[Symbol.dispose]();
-        }
-      } catch (err) {
-        error = hasError
-          ? new SuppressedError(
-              err,
-              error,
-              "An error was suppressed during disposal.",
-            )
-          : err;
-        hasError = true;
-      }
-    }
-
-    if (hasError) throw error;
-  }
-
-  private clear(): void {
-    this.instances.clear();
-    this.registry.clear();
-    this.pendingAsync.clear();
-  }
-
-  private lookup(token: Token): ResolvedEntry | undefined {
-    return this.registry.get(token) ?? this.parent?.lookup(token);
-  }
-
-  private resolveLifetime(provider: Provider): Lifetime {
-    let lifetime: Lifetime | undefined;
-    if (typeof provider === "function") {
-      lifetime = (provider as any)[Symbol.metadata]?.[DI_LIFETIME];
-    } else if ("useClass" in provider) {
-      const ctor = provider.useClass ?? {};
-      lifetime =
-        provider.lifetime ?? (ctor as any)[Symbol.metadata]?.[DI_LIFETIME];
-    } else if ("useFactory" in provider) {
-      lifetime = provider.lifetime;
-    }
-    return lifetime ?? Lifetime.SINGLETON;
-  }
-
-  private tryAutoRegister<T>(token: Token<T>): void {
-    if (typeof token !== "function") return;
-    const meta = (token as any)[Symbol.metadata];
-    if (!meta?.[DI_INJECTABLE]) return;
-    this.register(token as Constructor<T>);
-  }
-
-  private createInstance<T>(entry: ResolvedEntry<T>): T {
-    const p = entry.provider;
-    if ("useValue" in p) {
-      return p.useValue;
-    }
-    if ("useFactory" in p) {
-      return this.buildFactoryInstance<T>(p);
-    }
-    return new (p as ClassProvider<T>).useClass();
-  }
-
-  private buildFactoryInstance<T>(p: FactoryProvider<T>) {
-    const deps = (p as FactoryProvider).inject;
-
-    const args: unknown[] = (deps ?? []).map((dep) => {
-      if (this.isOptionalFactoryDependency(dep)) {
-        const optDep = dep as OptionalFactoryDependency;
-        if (optDep.optional && !this.has(optDep.token)) {
-          return undefined;
-        }
-        return this.resolveInContext(optDep.token);
-      }
-      return this.resolveInContext(dep);
-    });
-
-    const result = p.useFactory(...args);
-
-    if (result instanceof Promise) {
-      throw new Error(
-        `[DI] Factory for "${tokenName((p as any).provide)}" returned a Promise. ` +
-          `Async factories are not supported in resolve(). Use resolveAsync() instead.`,
-      );
-    }
-
-    return result as T;
-  }
-
   private async createInstanceAsync<T>(entry: ResolvedEntry<T>): Promise<T> {
     const p = entry.provider;
     if ("useValue" in p) {
@@ -393,16 +391,15 @@ export class Container implements Resolver {
   private async buildFactoryInstanceAsync<T>(
     p: FactoryProvider<T>,
   ): Promise<T> {
-    const deps = (p as FactoryProvider).inject;
+    const deps = p.inject ?? [];
     const args: unknown[] = [];
 
-    for (const dep of deps ?? []) {
-      if (this.isOptionalFactoryDependency(dep)) {
-        const optDep = dep as OptionalFactoryDependency;
-        if (optDep.optional && !this.has(optDep.token)) {
+    for (const dep of deps) {
+      if (isOptionalFactoryDependency(dep)) {
+        if (dep.optional && !this.has(dep.token)) {
           args.push(undefined);
         } else {
-          args.push(await this.resolveInContextAsync(optDep.token));
+          args.push(await this.resolveInContextAsync(dep.token));
         }
       } else {
         args.push(await this.resolveInContextAsync(dep as Token));
@@ -410,13 +407,5 @@ export class Container implements Resolver {
     }
 
     return await p.useFactory(...args);
-  }
-
-  private isOptionalFactoryDependency(
-    dep: Token<any> | OptionalFactoryDependency,
-  ) {
-    return (
-      dep && typeof dep === "object" && "token" in dep && "optional" in dep
-    );
   }
 }
