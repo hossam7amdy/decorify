@@ -8,7 +8,6 @@ export type {
   ValueProvider,
   ExistingProvider,
   FactoryProvider,
-  OptionalFactoryDependency,
 } from "./types.js";
 
 export { Lifetime } from "./lifetime.js";
