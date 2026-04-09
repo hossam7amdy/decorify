@@ -32,6 +32,7 @@ interface ResolvedEntry<T = any> {
 }
 
 export class Container implements Resolver {
+  private disposed = false;
   private registry = new Map<Token, ResolvedEntry>();
   private instances = new Map<Token, any>();
   private pendingAsync = new Map<Token, Promise<any>>();
@@ -92,6 +93,12 @@ export class Container implements Resolver {
 
   /** @internal — used by inject() and internally for recursive resolution */
   resolveInContext<T>(token: Token<T>): T {
+    if (this.disposed) {
+      throw new Error(
+        `[DI] Container is disposed or being disposed. Cannot resolve token "${tokenName(token)}".`,
+      );
+    }
+
     if (this.instances.has(token)) {
       return this.instances.get(token);
     }
@@ -186,6 +193,9 @@ export class Container implements Resolver {
   }
 
   async dispose(): Promise<void> {
+    if (this.disposed) return;
+    this.disposed = true;
+
     if (this.pendingAsync.size > 0) {
       await Promise.allSettled(this.pendingAsync.values());
     }
@@ -284,6 +294,12 @@ export class Container implements Resolver {
   }
 
   private async resolveInContextAsync<T>(token: Token<T>): Promise<T> {
+    if (this.disposed) {
+      throw new Error(
+        `[DI] Container is disposed or being disposed. Cannot resolve token "${tokenName(token)}".`,
+      );
+    }
+
     if (this.instances.has(token)) {
       return this.instances.get(token);
     }

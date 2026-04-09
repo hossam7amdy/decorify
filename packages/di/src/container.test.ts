@@ -915,6 +915,85 @@ describe("DI Container", () => {
       expect(order).toEqual(["C", "B", "A"]);
     });
 
+    it("should throw when resolve() is called after dispose()", async () => {
+      class Svc {}
+      container.register(Svc);
+      await container.dispose();
+
+      expect(() => container.resolve(Svc)).toThrow(
+        "[DI] Container is disposed or being disposed",
+      );
+    });
+
+    it("should throw when resolveAsync() is called after dispose()", async () => {
+      const token = new InjectionToken<string>("str");
+      container.register({ provide: token, useValue: "hi" });
+      await container.dispose();
+
+      await expect(container.resolveAsync(token)).rejects.toThrow(
+        "[DI] Container is disposed or being disposed",
+      );
+    });
+
+    it("should throw when resolve() is called while dispose() is awaiting", async () => {
+      class Svc {}
+      container.register(Svc);
+      container.resolve(Svc);
+
+      const disposePromise = container.dispose(); // starts disposing; disposed = true
+      expect(() => container.resolve(Svc)).toThrow(
+        "[DI] Container is disposed or being disposed",
+      );
+      await disposePromise;
+    });
+
+    it("should throw when resolveAsync() is called while dispose() is awaiting", async () => {
+      const token = new InjectionToken<string>("str");
+      container.register({ provide: token, useValue: "hi" });
+
+      const disposePromise = container.dispose();
+      await expect(container.resolveAsync(token)).rejects.toThrow(
+        "[DI] Container is disposed or being disposed",
+      );
+      await disposePromise;
+    });
+
+    it("should reject in-flight async factory sub-resolutions started after dispose() begins", async () => {
+      // depToken is a dependency resolved mid-factory, AFTER dispose() sets disposed=true.
+      // Without the disposed guard in resolveInContextAsync, it would silently add to
+      // pendingAsync after Promise.allSettled's snapshot, leaving an undisposed instance.
+      const depToken = new InjectionToken<string>("dep");
+      const mainToken = new InjectionToken<string>("main");
+
+      let resolveGate!: () => void;
+      const gate = new Promise<void>((res) => {
+        resolveGate = res;
+      });
+
+      container.register({ provide: depToken, useValue: "dep-value" });
+      container.register({
+        provide: mainToken,
+        useFactory: async () => {
+          await gate; // pause until dispose() has started
+          // This sub-resolution happens after disposed=true — must throw
+          return container.resolve(depToken);
+        },
+      });
+
+      const resolutionPromise = container.resolveAsync(mainToken);
+
+      // Start dispose while the factory is mid-flight (blocked on gate)
+      const disposePromise = container.dispose();
+
+      // Unblock the factory — it now tries to resolve depToken on a disposing container
+      resolveGate();
+
+      await expect(resolutionPromise).rejects.toThrow(
+        "[DI] Container is disposed or being disposed",
+      );
+      await disposePromise;
+    });
+
     it("should chain errors with SuppressedError in dispose", async () => {
       const err1 = new Error("first");
       const err2 = new Error("second");
