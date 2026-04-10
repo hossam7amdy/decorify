@@ -186,105 +186,8 @@ export class Container implements Resolver {
     }
   }
 
-  createScope(): Container {
-    return new Container(this, true);
-  }
-
-  has(token: Token): boolean {
-    return this.registry.has(token) || (this.parent?.has(token) ?? false);
-  }
-
-  get isInInjectionContext(): boolean {
-    return injectionContext.getStore() !== undefined;
-  }
-
-  async dispose(): Promise<void> {
-    if (this.disposed) return;
-    this.disposed = true;
-
-    if (this.pendingAsync.size > 0) {
-      await Promise.allSettled(this.pendingAsync.values());
-    }
-
-    const instances = [...this.instances.values()].reverse();
-    this.clear();
-
-    let error: unknown;
-    let hasError = false;
-
-    for (const instance of instances) {
-      if (instance == null) continue;
-      try {
-        if (typeof instance[Symbol.asyncDispose] === "function") {
-          await instance[Symbol.asyncDispose]();
-        } else if (typeof instance[Symbol.dispose] === "function") {
-          instance[Symbol.dispose]();
-        }
-      } catch (err) {
-        error = hasError
-          ? new DISuppressedError(
-              err,
-              error,
-              "An error was suppressed during disposal.",
-            )
-          : err;
-        hasError = true;
-      }
-    }
-
-    if (hasError) throw error;
-  }
-
-  private clear(): void {
-    this.instances.clear();
-    this.registry.clear();
-    this.pendingAsync.clear();
-  }
-
-  private lookup(token: Token): ResolvedEntry | undefined {
-    return this.registry.get(token) ?? this.parent?.lookup(token);
-  }
-
-  private resolveLifetime(provider: Provider): Lifetime {
-    let lifetime: Lifetime | undefined;
-    if (isConstructorProvider(provider)) {
-      lifetime = (provider as any)[Symbol.metadata]?.[DI_LIFETIME];
-    }
-    if (isClassProvider(provider)) {
-      const Class = provider.useClass;
-      lifetime =
-        provider.lifetime ?? (Class as any)[Symbol.metadata]?.[DI_LIFETIME];
-    }
-    if (isFactoryProvider(provider)) {
-      lifetime = provider.lifetime;
-    }
-    return lifetime ?? Lifetime.SINGLETON;
-  }
-
-  private tryAutoRegister<T>(token: Token<T>): void {
-    if (typeof token !== "function") return;
-    const meta = (token as any)[Symbol.metadata];
-    if (!meta?.[DI_INJECTABLE]) return;
-    this.register(token as Constructor<T>);
-  }
-
-  private createInstance<T>(entry: ResolvedEntry<T>): T {
-    const p = entry.provider;
-    if (isValueProvider(p)) return p.useValue;
-    if (isFactoryProvider(p)) return this.buildFactoryInstance(p);
-    return new (p as ClassProvider<T>).useClass();
-  }
-
-  private buildFactoryInstance<T>(provider: FactoryProvider<T>): T {
-    const result = provider.useFactory();
-    if (result instanceof Promise) {
-      throw new AsyncFactoryError(provider.provide);
-    }
-    return result as T;
-  }
-
-  /** @internal */
-  public async resolveInContextAsync<T>(token: Token<T>): Promise<T> {
+  /** @internal — used by injectAsync() and internally for recursive async resolution */
+  async resolveInContextAsync<T>(token: Token<T>): Promise<T> {
     if (this.disposed) {
       throw new ContainerDisposedError(token);
     }
@@ -380,6 +283,103 @@ export class Container implements Resolver {
       ctx.resolutionStack.pop();
       ltStack.pop();
     }
+  }
+
+  createScope(): Container {
+    return new Container(this, true);
+  }
+
+  has(token: Token): boolean {
+    return this.registry.has(token) || (this.parent?.has(token) ?? false);
+  }
+
+  get isInInjectionContext(): boolean {
+    return injectionContext.getStore() !== undefined;
+  }
+
+  async dispose(): Promise<void> {
+    if (this.disposed) return;
+    this.disposed = true;
+
+    if (this.pendingAsync.size > 0) {
+      await Promise.allSettled(this.pendingAsync.values());
+    }
+
+    const instances = [...this.instances.values()].reverse();
+    this.clear();
+
+    let error: unknown;
+    let hasError = false;
+
+    for (const instance of instances) {
+      if (instance == null) continue;
+      try {
+        if (typeof instance[Symbol.asyncDispose] === "function") {
+          await instance[Symbol.asyncDispose]();
+        } else if (typeof instance[Symbol.dispose] === "function") {
+          instance[Symbol.dispose]();
+        }
+      } catch (err) {
+        error = hasError
+          ? new DISuppressedError(
+              err,
+              error,
+              "An error was suppressed during disposal.",
+            )
+          : err;
+        hasError = true;
+      }
+    }
+
+    if (hasError) throw error;
+  }
+
+  private clear(): void {
+    this.instances.clear();
+    this.registry.clear();
+    this.pendingAsync.clear();
+  }
+
+  private lookup(token: Token): ResolvedEntry | undefined {
+    return this.registry.get(token) ?? this.parent?.lookup(token);
+  }
+
+  private resolveLifetime(provider: Provider): Lifetime {
+    let lifetime: Lifetime | undefined;
+    if (isConstructorProvider(provider)) {
+      lifetime = (provider as any)[Symbol.metadata]?.[DI_LIFETIME];
+    }
+    if (isClassProvider(provider)) {
+      const Class = provider.useClass;
+      lifetime =
+        provider.lifetime ?? (Class as any)[Symbol.metadata]?.[DI_LIFETIME];
+    }
+    if (isFactoryProvider(provider)) {
+      lifetime = provider.lifetime;
+    }
+    return lifetime ?? Lifetime.SINGLETON;
+  }
+
+  private tryAutoRegister<T>(token: Token<T>): void {
+    if (typeof token !== "function") return;
+    const meta = (token as any)[Symbol.metadata];
+    if (!meta?.[DI_INJECTABLE]) return;
+    this.register(token as Constructor<T>);
+  }
+
+  private createInstance<T>(entry: ResolvedEntry<T>): T {
+    const p = entry.provider;
+    if (isValueProvider(p)) return p.useValue;
+    if (isFactoryProvider(p)) return this.buildFactoryInstance(p);
+    return new (p as ClassProvider<T>).useClass();
+  }
+
+  private buildFactoryInstance<T>(provider: FactoryProvider<T>): T {
+    const result = provider.useFactory();
+    if (result instanceof Promise) {
+      throw new AsyncFactoryError(provider.provide);
+    }
+    return result as T;
   }
 
   private async createInstanceAsync<T>(entry: ResolvedEntry<T>): Promise<T> {
