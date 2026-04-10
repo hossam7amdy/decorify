@@ -2,7 +2,8 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { Container } from "./container.js";
 import { InjectionToken } from "./injection-token.js";
 import { Lifetime } from "./lifetime.js";
-import { inject } from "./context.js";
+import { inject, injectAsync } from "./context.js";
+import { InjectionContextError } from "./errors.js";
 
 describe("DI Container", () => {
   let container: Container;
@@ -559,7 +560,7 @@ describe("DI Container", () => {
       expect(() => container.resolve(token)).toThrow("returned a Promise");
     });
 
-    it("should pass resolved inject tokens as factory arguments", () => {
+    it("should resolve deps using inject() inside factory", () => {
       const A = new InjectionToken<string>("a");
       const B = new InjectionToken<number>("b");
       const RESULT = new InjectionToken<string>("result");
@@ -568,68 +569,24 @@ describe("DI Container", () => {
       container.register({ provide: B, useValue: 42 });
       container.register({
         provide: RESULT,
-        useFactory: (a: string, b: number) => `${a}-${b}`,
-        inject: [A, B],
+        useFactory: () => `${inject(A)}-${inject(B)}`,
       });
 
       expect(container.resolve(RESULT)).toBe("hello-42");
     });
 
-    it("should resolve OptionalFactoryDependency when token is registered", () => {
-      const DEP = new InjectionToken<string>("dep");
-      const RESULT = new InjectionToken<string>("result");
-
-      container.register({ provide: DEP, useValue: "present" });
-      container.register({
-        provide: RESULT,
-        useFactory: (d: string) => `got-${d}`,
-        inject: [{ token: DEP, optional: true }],
-      });
-
-      expect(container.resolve(RESULT)).toBe("got-present");
-    });
-
-    it("should pass undefined for optional dependency when token is not registered", () => {
-      const MISSING = new InjectionToken<string>("missing");
-      const RESULT = new InjectionToken<string | undefined>("result");
-
-      container.register({
-        provide: RESULT,
-        useFactory: (d?: string) => d ?? "fallback",
-        inject: [{ token: MISSING, optional: true }],
-      });
-
-      expect(container.resolve(RESULT)).toBe("fallback");
-    });
-
-    it("should throw for missing non-optional inject token", () => {
+    it("should throw when inject() inside factory targets unregistered token", () => {
       const MISSING = new InjectionToken<string>("missing");
       const TOKEN = new InjectionToken<string>("result");
 
       container.register({
         provide: TOKEN,
-        useFactory: (d: string) => d,
-        inject: [MISSING],
+        useFactory: () => inject(MISSING),
       });
 
       expect(() => container.resolve(TOKEN)).toThrow(
         "No provider registered for InjectionToken(missing)",
       );
-    });
-
-    it("should handle mix of plain tokens and optional dependencies", () => {
-      const A = new InjectionToken<string>("a");
-      const B = new InjectionToken<string>("b");
-      const RESULT = new InjectionToken<string>("result");
-
-      container.register({ provide: A, useValue: "alpha" });
-      container.register({
-        provide: RESULT,
-        useFactory: (a: string, b?: string) => `${a}-${b ?? "none"}`,
-        inject: [A, { token: B, optional: true }],
-      });
-
-      expect(container.resolve(RESULT)).toBe("alpha-none");
     });
   });
 
@@ -1082,7 +1039,7 @@ describe("DI Container", () => {
       expect(a).not.toBe(b);
     });
 
-    it("should resolve async factory with async inject dependencies", async () => {
+    it("should resolve async factory using inject() after async deps are primed", async () => {
       const A = new InjectionToken<string>("a");
       const B = new InjectionToken<string>("b");
       const RESULT = new InjectionToken<string>("result");
@@ -1091,28 +1048,30 @@ describe("DI Container", () => {
       container.register({ provide: B, useFactory: async () => "async-b" });
       container.register({
         provide: RESULT,
-        useFactory: async (a: string, b: string) => `${a}+${b}`,
-        inject: [A, B],
+        useFactory: async () => `${inject(A)}+${inject(B)}`,
       });
 
+      // Prime async deps first — inject() is sync, so A and B must be cached
+      // as singletons before the RESULT factory can call inject(A) / inject(B).
+      await container.resolveAsync(A);
+      await container.resolveAsync(B);
       expect(await container.resolveAsync(RESULT)).toBe("async-a+async-b");
     });
 
-    it("should resolve async factory with sync inject dependencies", async () => {
+    it("should resolve async factory with sync deps using inject()", async () => {
       const DEP = new InjectionToken<string>("dep");
       const RESULT = new InjectionToken<string>("result");
 
       container.register({ provide: DEP, useValue: "sync-dep" });
       container.register({
         provide: RESULT,
-        useFactory: async (d: string) => `got-${d}`,
-        inject: [DEP],
+        useFactory: async () => `got-${inject(DEP)}`,
       });
 
       expect(await container.resolveAsync(RESULT)).toBe("got-sync-dep");
     });
 
-    it("should resolve sync factory that depends on async factory via inject array", async () => {
+    it("should resolve sync factory using inject() after async dep is primed via resolveAsync()", async () => {
       const ASYNC_DEP = new InjectionToken<string>("asyncDep");
       const SYNC_RESULT = new InjectionToken<string>("syncResult");
 
@@ -1122,10 +1081,10 @@ describe("DI Container", () => {
       });
       container.register({
         provide: SYNC_RESULT,
-        useFactory: (d: string) => `sync-${d}`,
-        inject: [ASYNC_DEP],
+        useFactory: () => `sync-${inject(ASYNC_DEP)}`,
       });
 
+      await container.resolveAsync(ASYNC_DEP);
       expect(await container.resolveAsync(SYNC_RESULT)).toBe("sync-async-val");
     });
 
@@ -1144,8 +1103,8 @@ describe("DI Container", () => {
       const A = new InjectionToken<unknown>("A");
       const B = new InjectionToken<unknown>("B");
 
-      container.register({ provide: A, useFactory: () => null, inject: [B] });
-      container.register({ provide: B, useFactory: () => null, inject: [A] });
+      container.register({ provide: A, useFactory: () => inject(B) });
+      container.register({ provide: B, useFactory: () => inject(A) });
 
       await expect(container.resolveAsync(A)).rejects.toThrow(
         "Circular dependency detected",
@@ -1158,12 +1117,11 @@ describe("DI Container", () => {
 
       container.register({
         provide: SINGLETON_TOKEN,
-        useFactory: async () => ({}),
-        inject: [TRANSIENT_TOKEN],
+        useFactory: async () => inject(TRANSIENT_TOKEN),
       });
       container.register({
         provide: TRANSIENT_TOKEN,
-        useFactory: async () => ({}),
+        useFactory: () => ({}),
         lifetime: Lifetime.TRANSIENT,
       });
 
@@ -1255,33 +1213,6 @@ describe("DI Container", () => {
       expect(await container.resolveAsync(token)).toBe("success");
     });
 
-    it("should pass undefined for optional async inject dependency when not registered", async () => {
-      const MISSING = new InjectionToken<string>("missing");
-      const RESULT = new InjectionToken<string>("result");
-
-      container.register({
-        provide: RESULT,
-        useFactory: async (d?: string) => d ?? "fallback",
-        inject: [{ token: MISSING, optional: true }],
-      });
-
-      expect(await container.resolveAsync(RESULT)).toBe("fallback");
-    });
-
-    it("should resolve optional async inject dependency when registered", async () => {
-      const DEP = new InjectionToken<string>("optDep");
-      const RESULT = new InjectionToken<string>("optResult");
-
-      container.register({ provide: DEP, useFactory: async () => "present" });
-      container.register({
-        provide: RESULT,
-        useFactory: async (d?: string) => d ?? "fallback",
-        inject: [{ token: DEP, optional: true }],
-      });
-
-      expect(await container.resolveAsync(RESULT)).toBe("present");
-    });
-
     it("should still throw in sync resolve() when factory returns a Promise, with hint", () => {
       const token = new InjectionToken("asyncBadV2");
       container.register({
@@ -1318,6 +1249,50 @@ describe("DI Container", () => {
       // Unblock the factory and await completion to avoid dangling promises.
       release();
       await inFlight;
+    });
+  });
+
+  describe("injectAsync()", () => {
+    it("should resolve an async singleton dep without pre-priming", async () => {
+      const DB = new InjectionToken<string>("db");
+      const REPO = new InjectionToken<string>("repo");
+
+      container.register({
+        provide: DB,
+        useFactory: async () => "db-instance",
+      });
+      container.register({
+        provide: REPO,
+        useFactory: async () => `repo(${await injectAsync(DB)})`,
+      });
+
+      expect(await container.resolveAsync(REPO)).toBe("repo(db-instance)");
+    });
+
+    it("should resolve a transient async dep (never cached) inside a factory", async () => {
+      const DEP = new InjectionToken<number>("dep");
+      const RESULT = new InjectionToken<number>("result");
+      let calls = 0;
+
+      container.register({
+        provide: DEP,
+        useFactory: async () => ++calls,
+        lifetime: Lifetime.TRANSIENT,
+      });
+      container.register({
+        provide: RESULT,
+        useFactory: async () => await injectAsync(DEP),
+        lifetime: Lifetime.TRANSIENT,
+      });
+      const a = await container.resolveAsync(RESULT);
+      expect(a).toBe(1);
+      expect(calls).toBe(1);
+    });
+
+    it("should throw InjectionContextError when called outside of an injection context", async () => {
+      await expect(injectAsync(new InjectionToken("tok"))).rejects.toThrow(
+        InjectionContextError,
+      );
     });
   });
 });

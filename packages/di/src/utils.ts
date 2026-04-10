@@ -6,7 +6,6 @@ import type {
   ClassProvider,
   FactoryProvider,
   ExistingProvider,
-  OptionalFactoryDependency,
 } from "./types.js";
 import { InjectionToken } from "./injection-token.js";
 
@@ -53,16 +52,5 @@ export function hasStrategy<T>(provider: Provider<T>) {
     isValueProvider(provider) ||
     isFactoryProvider(provider) ||
     isExistingProvider(provider)
-  );
-}
-
-export function isOptionalFactoryDependency<T>(
-  dep: Token<T> | OptionalFactoryDependency<T>,
-): dep is OptionalFactoryDependency<T> {
-  return (
-    typeof dep === "object" &&
-    dep !== null &&
-    "optional" in dep &&
-    (dep as OptionalFactoryDependency<T>).optional === true
   );
 }

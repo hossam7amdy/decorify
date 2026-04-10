@@ -1,9 +1,11 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import type { Token } from "./types.js";
 import type { Lifetime } from "./lifetime.js";
+import { InjectionContextError } from "./errors.js";
 
 export interface Resolver {
   resolveInContext<T>(token: Token<T>): T;
+  resolveInContextAsync<T>(token: Token<T>): Promise<T>;
 }
 
 export interface InjectionContext {
@@ -29,12 +31,24 @@ export const injectionContext = new AsyncLocalStorage<InjectionContext>();
  */
 export function inject<T>(token: Token<T>): T {
   const ctx = injectionContext.getStore();
-  if (!ctx) {
-    throw new Error(
-      `inject() called outside of an injection context. ` +
-        `It can only be used inside a class constructor or factory function ` +
-        `that is being resolved by the DI container.`,
-    );
-  }
+  if (!ctx) throw new InjectionContextError("inject");
   return ctx.container.resolveInContext(token);
+}
+
+/**
+ * Asynchronously resolve a dependency from the current injection context.
+ * Must be awaited. Can only be called inside an async factory function
+ * that is being resolved by the DI container.
+ * Works for async singletons (without pre-priming) and transient async providers.
+ *
+ * @example
+ * container.register({
+ *   provide: USER_REPO,
+ *   useFactory: async () => new UserRepository(await injectAsync(DATABASE)),
+ * });
+ */
+export async function injectAsync<T>(token: Token<T>): Promise<T> {
+  const ctx = injectionContext.getStore();
+  if (!ctx) throw new InjectionContextError("injectAsync");
+  return ctx.container.resolveInContextAsync(token);
 }

@@ -89,3 +89,13 @@ export class AsyncFactoryError extends DIError {
     );
   }
 }
+
+export class InjectionContextError extends DIError {
+  constructor(fn: "inject" | "injectAsync") {
+    super(
+      `${fn}() called outside of an injection context. ` +
+        `It can only be used inside a class constructor or factory function ` +
+        `that is being resolved by the DI container.`,
+    );
+  }
+}
