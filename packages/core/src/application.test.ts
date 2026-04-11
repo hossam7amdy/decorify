@@ -76,12 +76,9 @@ describe("Application", () => {
       controllers: [],
     });
 
-    const initSpy = vi.spyOn(app["container"], "initialize");
     const disposeSpy = vi.spyOn(app["container"], "dispose");
 
     await app.init();
-    expect(initSpy).toHaveBeenCalled();
-
     await app.close();
     expect(disposeSpy).toHaveBeenCalled();
   });

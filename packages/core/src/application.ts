@@ -1,5 +1,10 @@
 import type { HttpAdapter } from "./adapters/http-adapter.js";
-import { Container, type Constructor, type Provider } from "@decorify/di";
+import {
+  Container,
+  type Constructor,
+  type Provider,
+  type Token,
+} from "@decorify/di";
 import type {
   MiddlewareHandler,
   GuardType,
@@ -41,10 +46,12 @@ export class Application<Adapter> {
       );
     }
 
+    await app.container.initialize();
+
     return app;
   }
 
-  resolve<T>(token: Constructor<T>): T {
+  resolve<T>(token: Token<T>): T {
     return this.container.resolve(token);
   }
 
@@ -68,8 +75,6 @@ export class Application<Adapter> {
       throw new Error("Application is already initialized");
     }
     this.initialized = true;
-
-    await this.container.initialize();
 
     registerControllers(
       this.container,
