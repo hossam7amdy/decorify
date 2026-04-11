@@ -4,6 +4,11 @@ import type { MiddlewareHandler, Guard, ExceptionFilter } from "./types.js";
 import { LifecycleManager } from "./lifecycle/manager.js";
 import { registerControllers } from "./router.js";
 
+interface ApplicationOptions {
+  controllers: Constructor[];
+  globalProviders?: Provider[];
+}
+
 export class Application {
   private adapter: HttpAdapter;
   private container = new Container();
@@ -18,15 +23,19 @@ export class Application {
   }
 
   static async create(
-    controllers: Constructor[],
     adapter: HttpAdapter,
+    options: ApplicationOptions,
   ): Promise<Application> {
     const app = new Application(adapter);
 
-    // Defensive copy to avoid external mutations
-    app.controllers = [...controllers];
+    app.controllers = options.controllers;
 
-    // Register all controllers and build route pipelines
+    if (options.globalProviders) {
+      options.globalProviders.forEach((provider) =>
+        app.container.register(provider),
+      );
+    }
+
     registerControllers(
       app.container,
       app.adapter,
@@ -44,11 +53,6 @@ export class Application {
 
   resolve<T>(token: Constructor<T>): T {
     return this.container.resolve(token);
-  }
-
-  register<T>(...providers: Provider<T>[]): this {
-    providers.forEach((provider) => this.container.register(provider));
-    return this;
   }
 
   useMiddleware(...handlers: MiddlewareHandler[]): this {

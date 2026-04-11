@@ -22,21 +22,27 @@ describe("Application", () => {
     @Controller("/")
     class MyController {}
 
-    const app = await Application.create([MyController], mockAdapter);
+    const app = await Application.create(mockAdapter, {
+      controllers: [MyController],
+    });
 
     expect(app["controllers"]).toHaveLength(1);
     expect(app["controllers"][0]).toBe(MyController);
   });
 
   it("should call adapter.listen when app.listen() is called", async () => {
-    const app = await Application.create([], mockAdapter);
+    const app = await Application.create(mockAdapter, {
+      controllers: [],
+    });
     const callback = () => {};
     await app.listen(3000, callback);
     expect(mockAdapter.listen).toHaveBeenCalledWith(3000, callback);
   });
 
   it("should call adapter.close when app.close() is called", async () => {
-    const app = await Application.create([], mockAdapter);
+    const app = await Application.create(mockAdapter, {
+      controllers: [],
+    });
     await app.close();
     expect(mockAdapter.close).toHaveBeenCalled();
   });
@@ -50,7 +56,9 @@ describe("Application", () => {
     @Controller("/")
     class MyController {}
 
-    const app = await Application.create([MyController], mockAdapter);
+    const app = await Application.create(mockAdapter, {
+      controllers: [MyController],
+    });
     app.useMiddleware(mw).useGlobalGuard(guard).useGlobalFilter(filter);
 
     expect(app["globalGuards"]).toHaveLength(1);
@@ -59,7 +67,9 @@ describe("Application", () => {
   });
 
   it("should return the adapter via getAdapter()", async () => {
-    const app = await Application.create([], mockAdapter);
+    const app = await Application.create(mockAdapter, {
+      controllers: [],
+    });
     expect(app.getAdapter()).toBe(mockAdapter);
   });
 });
