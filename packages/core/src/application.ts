@@ -9,8 +9,8 @@ import { LifecycleManager } from "./lifecycle/manager.js";
 import { registerControllers } from "./router.js";
 
 interface ApplicationOptions {
-  controllers: Constructor[];
-  globalProviders?: Provider[];
+  controllers: ReadonlyArray<Constructor>;
+  globalProviders?: ReadonlyArray<Provider>;
 }
 
 export class Application<Adapter> {
@@ -65,7 +65,7 @@ export class Application<Adapter> {
 
   async init(): Promise<void> {
     if (this.initialized) {
-      return Promise.resolve();
+      throw new Error("Application is already initialized");
     }
     this.initialized = true;
 
