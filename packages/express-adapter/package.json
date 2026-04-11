@@ -1,6 +1,6 @@
 {
   "name": "@decorify/express-adapter",
-  "version": "0.0.1",
+  "version": "0.1.0-alpha.0",
   "description": "Express 5 adapter for @decorify/core.",
   "type": "module",
   "main": "./dist/index.js",

@@ -1,6 +1,6 @@
 {
   "name": "@decorify/core",
-  "version": "0.0.1",
+  "version": "0.1.0-alpha.0",
   "description": "Framework-agnostic HTTP backend framework with Stage 3 ES decorators.",
   "type": "module",
   "main": "./dist/index.js",
