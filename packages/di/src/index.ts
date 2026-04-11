@@ -38,4 +38,5 @@ export {
   CaptiveDependencyError,
   AsyncFactoryError,
   InjectionContextError,
+  InitializeError,
 } from "./errors.js";

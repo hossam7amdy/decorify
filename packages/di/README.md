@@ -20,7 +20,7 @@ pnpm add @decorify/di
 - Captive dependency detection (prevents longer-lived services from capturing shorter-lived ones)
 - Scoped containers via `createScope()`
 - `AsyncLocalStorage`-based injection context — `inject()` works in constructors, factories, and nested resolution
-- **Async factory support** — `resolveAsync()` handles `Promise`-returning factories for async initialization (DB connections, config vaults, HTTP clients)
+- **Async factory support** — `resolveAsync()` handles `Promise`-returning factories; `initialize()` eagerly resolves all async singletons in one call so every subsequent `resolve()` / `inject()` is synchronous
 
 ## Usage
 
@@ -201,6 +201,58 @@ await container.resolveAsync(DATABASE); // prime the cache
 const repo = await container.resolveAsync(UserRepository); // inject(DATABASE) finds cache
 ```
 
+Prefer `container.initialize()` for this pattern — it primes all async singletons at once.
+
+### `container.initialize()`
+
+Eagerly resolve **all registered singleton factory providers** in parallel. After `initialize()` completes, every async singleton is cached and available via the synchronous `resolve()` / `inject()` APIs.
+
+```ts
+// Phase 1 — register everything
+container.register({
+  provide: DATABASE,
+  useFactory: async () => {
+    const db = new Database();
+    await db.connect();
+    return db;
+  },
+});
+container.register({
+  provide: CACHE,
+  useFactory: async () => connectRedis(),
+});
+container.register({
+  provide: APP_SERVICE,
+  useFactory: async () => new AppService(await injectAsync(DATABASE)),
+});
+
+// Phase 2 — initialize once at startup
+await container.initialize();
+
+// Phase 3 — use synchronously anywhere
+const db = container.resolve(DATABASE); // ✅
+const svc = container.resolve(APP_SERVICE); // ✅
+```
+
+**Behavior:**
+
+- Already-resolved singletons are skipped — calling `initialize()` twice is safe.
+- Transient and scoped factories are intentionally ignored (they are not eager).
+- Non-factory providers (`useValue`, `useClass`, `useExisting`) are ignored.
+- If multiple factories reject, all errors are aggregated into a single `InitializeError`.
+
+```ts
+try {
+  await container.initialize();
+} catch (err) {
+  if (err instanceof InitializeError) {
+    for (const { token, error } of err.errors) {
+      console.error(`Failed to initialize ${token}:`, error);
+    }
+  }
+}
+```
+
 ### `container.createScope()`
 
 Create a child container for resolving `scoped` dependencies. Singletons delegate to the parent.
@@ -295,6 +347,7 @@ import {
   Container,
   inject,
   injectAsync,
+  InitializeError,
 } from "@decorify/di";
 ```
 

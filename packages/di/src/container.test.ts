@@ -1295,4 +1295,145 @@ describe("DI Container", () => {
       );
     });
   });
+
+  describe("initialize()", () => {
+    it("should resolve all async singleton factories and make them available synchronously", async () => {
+      const DB = new InjectionToken<string>("db");
+      const CACHE = new InjectionToken<string>("cache");
+      const SVC = new InjectionToken<string>("svc");
+
+      container.register({ provide: DB, useFactory: async () => "db-conn" });
+      container.register({
+        provide: CACHE,
+        useFactory: async () => "cache-conn",
+      });
+      container.register({ provide: SVC, useFactory: async () => "svc-inst" });
+
+      await container.initialize();
+
+      expect(container.resolve(DB)).toBe("db-conn");
+      expect(container.resolve(CACHE)).toBe("cache-conn");
+      expect(container.resolve(SVC)).toBe("svc-inst");
+    });
+
+    it("should skip already-resolved singletons (factory called only once)", async () => {
+      const factory = vi.fn(async () => "value");
+      const TOKEN = new InjectionToken<string>("tok");
+      container.register({ provide: TOKEN, useFactory: factory });
+
+      await container.resolveAsync(TOKEN);
+      expect(factory).toHaveBeenCalledTimes(1);
+
+      await container.initialize();
+      expect(factory).toHaveBeenCalledTimes(1);
+    });
+
+    it("should skip transient factory providers", async () => {
+      const factory = vi.fn(async () => ({}));
+      const TOKEN = new InjectionToken("transient");
+      container.register({
+        provide: TOKEN,
+        useFactory: factory,
+        lifetime: Lifetime.TRANSIENT,
+      });
+
+      await container.initialize();
+
+      expect(factory).not.toHaveBeenCalled();
+    });
+
+    it("should skip scoped factory providers", async () => {
+      const factory = vi.fn(async () => ({}));
+      const TOKEN = new InjectionToken("scoped");
+      container.register({
+        provide: TOKEN,
+        useFactory: factory,
+        lifetime: Lifetime.SCOPED,
+      });
+
+      await container.initialize();
+
+      expect(factory).not.toHaveBeenCalled();
+    });
+
+    it("should skip non-factory providers (useValue, useClass, useExisting)", async () => {
+      class Svc {}
+      const VAL = new InjectionToken<number>("val");
+      const ALIAS = new InjectionToken<number>("alias");
+
+      container.register(Svc);
+      container.register({ provide: VAL, useValue: 42 });
+      container.register({ provide: ALIAS, useExisting: VAL });
+
+      await expect(container.initialize()).resolves.toBe(0);
+    });
+
+    it("should handle inter-dependent async factories via injectAsync()", async () => {
+      const A = new InjectionToken<string>("a");
+      const B = new InjectionToken<string>("b");
+
+      container.register({ provide: A, useFactory: async () => "a-value" });
+      container.register({
+        provide: B,
+        useFactory: async () => `b(${await injectAsync(A)})`,
+      });
+
+      await container.initialize();
+
+      expect(container.resolve(A)).toBe("a-value");
+      expect(container.resolve(B)).toBe("b(a-value)");
+    });
+
+    it("should collect all factory failures into an InitializeError", async () => {
+      const { InitializeError } = await import("./errors.js");
+
+      const A = new InjectionToken<string>("failA");
+      const B = new InjectionToken<string>("failB");
+      const C = new InjectionToken<string>("ok");
+
+      container.register({
+        provide: A,
+        useFactory: async () => {
+          throw new Error("A failed");
+        },
+      });
+      container.register({
+        provide: B,
+        useFactory: async () => {
+          throw new Error("B failed");
+        },
+      });
+      container.register({ provide: C, useFactory: async () => "ok" });
+
+      const err = await container.initialize().catch((e) => e);
+
+      expect(err).toBeInstanceOf(InitializeError);
+      expect(err.errors).toHaveLength(2);
+      expect(err.message).toContain("initialize() failed for 2 provider(s)");
+      expect(err.message).toContain("A failed");
+      expect(err.message).toContain("B failed");
+    });
+
+    it("should be idempotent — calling initialize() twice resolves each factory only once", async () => {
+      const factory = vi.fn(async () => "val");
+      const TOKEN = new InjectionToken<string>("idem");
+      container.register({ provide: TOKEN, useFactory: factory });
+
+      await container.initialize();
+      await container.initialize();
+
+      expect(factory).toHaveBeenCalledTimes(1);
+    });
+
+    it("should throw ContainerDisposedError when called after dispose()", async () => {
+      await container.dispose();
+      await expect(container.initialize()).rejects.toThrow(
+        "[DI] Container is disposed or being disposed",
+      );
+    });
+
+    it("should be a no-op when the registry is empty", async () => {
+      await expect(container.initialize()).resolves.toBe(0);
+    });
+  });
 });

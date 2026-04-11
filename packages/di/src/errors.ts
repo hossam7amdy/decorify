@@ -40,10 +40,11 @@ export class DuplicateTokenError extends DIError {
 }
 
 export class ContainerDisposedError extends DIError {
-  constructor(token: Token) {
-    super(
-      `Container is disposed or being disposed. Cannot resolve token "${tokenName(token)}".`,
-    );
+  constructor(token?: Token) {
+    const tokenMessage = token
+      ? ` Cannot resolve token "${tokenName(token)}".`
+      : "";
+    super(`Container is disposed or being disposed.${tokenMessage}`);
   }
 }
 
@@ -97,5 +98,19 @@ export class InjectionContextError extends DIError {
         `It can only be used inside a class constructor or factory function ` +
         `that is being resolved by the DI container.`,
     );
+  }
+}
+
+export class InitializeError extends DIError {
+  constructor(public readonly errors: Array<{ token: Token; error: unknown }>) {
+    const summary = errors
+      .map(
+        ({ token, error }) =>
+          `  - ${tokenName(token)}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+      )
+      .join("\n");
+    super(`initialize() failed for ${errors.length} provider(s):\n${summary}`);
   }
 }

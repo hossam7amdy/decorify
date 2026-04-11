@@ -24,6 +24,7 @@ import {
   ContainerDisposedError,
   DISuppressedError,
   DuplicateTokenError,
+  InitializeError,
   MissingStrategyError,
   NoProviderError,
   ScopedResolutionError,
@@ -287,6 +288,43 @@ export class Container implements Resolver {
 
   createScope(): Container {
     return new Container(this, true);
+  }
+
+  async initialize(): Promise<number> {
+    if (this.disposed) {
+      throw new ContainerDisposedError();
+    }
+
+    const tokens: Token[] = [];
+
+    for (const [token, entry] of this.registry) {
+      if (
+        entry.lifetime === Lifetime.SINGLETON &&
+        isFactoryProvider(entry.provider)
+      ) {
+        tokens.push(token);
+      }
+    }
+
+    if (tokens.length === 0) return 0;
+
+    const results = await Promise.allSettled(
+      tokens.map((token) => this.resolveAsync(token)),
+    );
+
+    const errors: Array<{ token: Token; error: unknown }> = [];
+    for (let i = 0; i < results.length; i++) {
+      const r = results[i]!;
+      if (r.status === "rejected") {
+        errors.push({ token: tokens[i]!, error: r.reason });
+      }
+    }
+
+    if (errors.length > 0) {
+      throw new InitializeError(errors);
+    }
+
+    return results.length;
   }
 
   has(token: Token): boolean {
