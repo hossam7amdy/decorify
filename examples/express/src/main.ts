@@ -1,17 +1,19 @@
 import { Application } from "@decorify/core";
 import { ExpressAdapter } from "@decorify/express-adapter";
-import { UserController } from "./user.module/user.controller.js";
+import { TodoController } from "./todo.module/todo.controller.js";
+import { DatabaseProvider } from "./database.provider.js";
+import { config } from "./config.js";
 
-async function bootstrap() {
-  const appExpressAdapter = new ExpressAdapter();
-  const app = await Application.create(appExpressAdapter, {
-    controllers: [UserController],
-  });
+const appExpressAdapter = new ExpressAdapter();
 
-  const PORT = Number(process.env.PORT) || 3000;
-  await app.listen(PORT, () => {
-    console.log(`Server listening on port ${PORT}`);
-  });
-}
+const app = await Application.create(appExpressAdapter, {
+  controllers: [TodoController],
+  globalProviders: [DatabaseProvider],
+});
 
-bootstrap();
+await app.listen(config.PORT, () => {
+  console.log(`[App] Todo Application is running on port ${config.PORT}`);
+  console.log(
+    `[App] REST API available at http://localhost:${config.PORT}/todos`,
+  );
+});
