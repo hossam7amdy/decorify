@@ -4,21 +4,32 @@ import { tokenName } from "./utils.js";
 
 const prefix = "[DI] ";
 
-export abstract class DIError extends Error {
-  constructor(message: string) {
+export class DIError extends Error {
+  readonly details?: unknown;
+
+  constructor(message: string, details?: unknown) {
     super(prefix + message);
     this.name = this.constructor.name;
+    this.details = details;
+  }
+
+  toJSON() {
+    return {
+      name: this.constructor.name,
+      message: this.message,
+      ...(this.details ? { details: this.details } : {}),
+    };
   }
 }
 
 export class DISuppressedError extends DIError {
-  constructor(
-    readonly error: unknown,
-    readonly suppressed: unknown,
-    message: string,
-  ) {
+  readonly error: unknown;
+  readonly suppressed: unknown;
+
+  constructor(error: unknown, suppressed: unknown, message: string) {
     super(prefix + message);
-    this.name = this.constructor.name;
+    this.error = error;
+    this.suppressed = suppressed;
   }
 }
 
@@ -102,7 +113,8 @@ export class InjectionContextError extends DIError {
 }
 
 export class InitializeError extends DIError {
-  constructor(public readonly errors: Array<{ token: Token; error: unknown }>) {
+  readonly errors: Array<{ token: Token; error: unknown }>;
+  constructor(errors: InitializeError["errors"]) {
     const summary = errors
       .map(
         ({ token, error }) =>
@@ -112,5 +124,14 @@ export class InitializeError extends DIError {
       )
       .join("\n");
     super(`initialize() failed for ${errors.length} provider(s):\n${summary}`);
+    this.errors = errors;
+  }
+
+  override toJSON() {
+    return {
+      name: this.constructor.name,
+      message: this.message,
+      errors: this.errors,
+    };
   }
 }

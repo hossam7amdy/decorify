@@ -56,5 +56,21 @@ export {
 } from "./lifecycle/index.js";
 
 // Re-export DI utilities
-export { Container, Injectable, inject, Inject, Lifetime } from "@decorify/di";
-export type { Constructor, Token, Provider } from "@decorify/di";
+export {
+  Container,
+  Injectable,
+  Inject,
+  injectAsync,
+  inject,
+  InjectionToken,
+  Lifetime,
+} from "@decorify/di";
+export type {
+  Token,
+  Provider,
+  Constructor,
+  ClassProvider,
+  ValueProvider,
+  ExistingProvider,
+  FactoryProvider,
+} from "@decorify/di";

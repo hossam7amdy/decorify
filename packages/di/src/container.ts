@@ -44,14 +44,11 @@ interface ResolvedEntry<T = any> {
 
 export class Container implements Resolver {
   private disposed = false;
+  private isScoped = false;
+  private parent: Container | null = null;
   private registry = new Map<Token, ResolvedEntry>();
   private instances = new Map<Token, any>();
   private pendingAsync = new Map<Token, Promise<any>>();
-
-  constructor(
-    private parent?: Container,
-    private isScoped = false,
-  ) {}
 
   register<T>(provider: Provider<T>, opts?: { override?: boolean }): void {
     if (typeof provider === "function") {
@@ -287,7 +284,10 @@ export class Container implements Resolver {
   }
 
   createScope(): Container {
-    return new Container(this, true);
+    const scope = new Container();
+    scope.parent = this;
+    scope.isScoped = true;
+    return scope;
   }
 
   async initialize(): Promise<number> {

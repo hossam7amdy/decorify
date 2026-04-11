@@ -5,6 +5,7 @@ import { LifecycleManager } from "./lifecycle/manager.js";
 import { registerControllers } from "./router.js";
 
 export class Application {
+  private adapter: HttpAdapter;
   private container = new Container();
   private lifecycle = new LifecycleManager();
   private controllers: Constructor[] = [];
@@ -12,7 +13,9 @@ export class Application {
   private globalGuards: Guard[] = [];
   private globalFilters: ExceptionFilter[] = [];
 
-  protected constructor(private adapter: HttpAdapter) {}
+  protected constructor(adapter: HttpAdapter) {
+    this.adapter = adapter;
+  }
 
   static async create(
     controllers: Constructor[],

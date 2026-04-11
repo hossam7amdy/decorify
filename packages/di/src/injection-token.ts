@@ -1,4 +1,7 @@
 export class InjectionToken<T = any> {
   readonly __brand!: T;
-  constructor(public description: string) {}
+  readonly description;
+  constructor(description: string) {
+    this.description = description;
+  }
 }
