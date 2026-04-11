@@ -1,6 +1,6 @@
 {
   "name": "@decorify/di",
-  "version": "0.0.1",
+  "version": "0.0.2-alpha",
   "description": "Standalone dependency injection container with Stage 3 ES decorators support.",
   "type": "module",
   "main": "./dist/index.js",
