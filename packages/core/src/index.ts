@@ -2,16 +2,8 @@ import "./symbol-metadata-polyfill.js";
 
 // Core
 export { Application } from "./application.js";
-export type {
-  HttpContext,
-  InjectableContext,
-  ResolvedContext,
-} from "./context.js";
-export type {
-  HttpAdapter,
-  InjectableAdapter,
-  ResolvedAdapter,
-} from "./adapters/http-adapter.js";
+export type { HttpContext, InjectableContext } from "./context.js";
+export type { HttpAdapter } from "./adapters/http-adapter.js";
 
 // HTTP types
 export type {
@@ -23,6 +15,7 @@ export type {
 } from "./types.js";
 
 // HTTP Decorators
+export { HttpStatus } from "./http/index.js";
 export {
   Controller,
   Get,
@@ -30,9 +23,15 @@ export {
   Put,
   Delete,
   Patch,
+  Head,
+  Options,
+  All,
   UseMiddleware,
   UseGuard,
   UseFilter,
+  ValidateBody,
+  ValidateParams,
+  ValidateQuery,
 } from "./http/index.js";
 export type { RouteMetadata, ControllerMetadata } from "./http/index.js";
 
@@ -43,6 +42,10 @@ export {
   UnauthorizedException,
   ForbiddenException,
   NotFoundException,
+  MethodNotAllowedException,
+  ConflictException,
+  UnprocessableEntityException,
+  TooManyRequestsException,
   InternalServerErrorException,
   DefaultExceptionFilter,
 } from "./errors/index.js";

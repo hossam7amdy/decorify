@@ -1,4 +1,5 @@
 import type { HttpContext } from "./context.js";
+import type { Constructor } from "@decorify/di";
 
 export type RouteHandler = (ctx: HttpContext) => unknown | Promise<unknown>;
 
@@ -16,6 +17,12 @@ export interface Guard {
   canActivate(ctx: HttpContext): boolean | Promise<boolean>;
 }
 
+export type GuardType = Guard | Constructor<Guard>;
+
 export interface ExceptionFilter {
   catch(error: Error, ctx: HttpContext): void | Promise<void>;
 }
+
+export type ExceptionFilterType =
+  | ExceptionFilter
+  | Constructor<ExceptionFilter>;

@@ -11,8 +11,6 @@ describe("Application", () => {
       registerRoute: vi.fn(),
       listen: vi.fn().mockResolvedValue(undefined),
       close: vi.fn().mockResolvedValue(undefined),
-      useMiddleware: vi.fn(),
-      useErrorHandler: vi.fn(),
       getInstance: vi.fn(),
     };
   });
@@ -22,21 +20,27 @@ describe("Application", () => {
     @Controller("/")
     class MyController {}
 
-    const app = await Application.create([MyController], mockAdapter);
+    const app = await Application.create(mockAdapter, {
+      controllers: [MyController],
+    });
 
     expect(app["controllers"]).toHaveLength(1);
     expect(app["controllers"][0]).toBe(MyController);
   });
 
   it("should call adapter.listen when app.listen() is called", async () => {
-    const app = await Application.create([], mockAdapter);
+    const app = await Application.create(mockAdapter, {
+      controllers: [],
+    });
     const callback = () => {};
     await app.listen(3000, callback);
     expect(mockAdapter.listen).toHaveBeenCalledWith(3000, callback);
   });
 
   it("should call adapter.close when app.close() is called", async () => {
-    const app = await Application.create([], mockAdapter);
+    const app = await Application.create(mockAdapter, {
+      controllers: [],
+    });
     await app.close();
     expect(mockAdapter.close).toHaveBeenCalled();
   });
@@ -50,7 +54,9 @@ describe("Application", () => {
     @Controller("/")
     class MyController {}
 
-    const app = await Application.create([MyController], mockAdapter);
+    const app = await Application.create(mockAdapter, {
+      controllers: [MyController],
+    });
     app.useMiddleware(mw).useGlobalGuard(guard).useGlobalFilter(filter);
 
     expect(app["globalGuards"]).toHaveLength(1);
@@ -58,8 +64,42 @@ describe("Application", () => {
     expect(app["globalMiddleware"]).toHaveLength(1);
   });
 
-  it("should return the adapter via getAdapter()", async () => {
-    const app = await Application.create([], mockAdapter);
-    expect(app.getAdapter()).toBe(mockAdapter);
+  it("should return the adapter via app.adapter", async () => {
+    const app = await Application.create(mockAdapter, {
+      controllers: [],
+    });
+    expect(app.adapter).toBe(mockAdapter);
+  });
+
+  it("should initialize and dispose the DI container during lifecycle", async () => {
+    const app = await Application.create(mockAdapter, {
+      controllers: [],
+    });
+
+    const disposeSpy = vi.spyOn(app["container"], "dispose");
+
+    await app.init();
+    await app.close();
+    expect(disposeSpy).toHaveBeenCalled();
+  });
+
+  it("should track all resolved DI instances for lifecycle hooks", async () => {
+    @Injectable()
+    class MyService {
+      onInit() {}
+    }
+
+    const app = await Application.create(mockAdapter, {
+      controllers: [],
+    });
+
+    app["container"].register(MyService);
+    const instance = app["container"].resolve(MyService);
+
+    const trackSpy = vi.spyOn(app["lifecycle"], "track");
+
+    await app.init();
+
+    expect(trackSpy).toHaveBeenCalledWith(instance);
   });
 });

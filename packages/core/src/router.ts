@@ -5,18 +5,24 @@ import type {
   MiddlewareHandler,
   Guard,
   ExceptionFilter,
+  GuardType,
+  ExceptionFilterType,
 } from "./types.js";
 import type { ControllerMetadata } from "./http/metadata.js";
 import type { Constructor } from "@decorify/di";
-import { ForbiddenException } from "./errors/http-exception.js";
+import {
+  ForbiddenException,
+  BadRequestException,
+} from "./errors/http-exception.js";
 import { DefaultExceptionFilter } from "./errors/exception-filter.js";
 import { Container } from "@decorify/di";
 import { LifecycleManager } from "./lifecycle/manager.js";
+import type { StandardSchemaV1 } from "./standard-schema.js";
 
 export interface RouterOptions {
   globalMiddleware: MiddlewareHandler[];
-  globalGuards: Guard[];
-  globalFilters: ExceptionFilter[];
+  globalGuards: GuardType[];
+  globalFilters: ExceptionFilterType[];
 }
 
 export function registerControllers(
@@ -65,27 +71,70 @@ export function registerControllers(
       ];
 
       // Collect guards: global → class → method
-      const guards: Guard[] = [
+      const rawGuards: GuardType[] = [
         ...options.globalGuards,
         ...(metadata.classGuards ?? []),
         ...(metadata.methodGuards?.get(route.handlerName) ?? []),
       ];
 
+      const guards: Guard[] = rawGuards.map((g) => {
+        if (typeof g === "function") {
+          return container.resolve<Guard>(g as Constructor<Guard>);
+        }
+        return g;
+      });
+
       // Collect filters: method → class → global (first match wins)
-      const filters: ExceptionFilter[] = [
+      const rawFilters: ExceptionFilterType[] = [
         ...(metadata.methodFilters?.get(route.handlerName) ?? []),
         ...(metadata.classFilters ?? []),
         ...options.globalFilters,
         defaultFilter,
       ];
 
+      const filters: ExceptionFilter[] = rawFilters.map((f) => {
+        if (typeof f === "function") {
+          return container.resolve<ExceptionFilter>(
+            f as Constructor<ExceptionFilter>,
+          );
+        }
+        return f;
+      });
+
+      const bodySchema = metadata.methodBodySchemas?.get(route.handlerName);
+      const paramsSchema = metadata.methodParamsSchemas?.get(route.handlerName);
+      const querySchema = metadata.methodQuerySchemas?.get(route.handlerName);
+
       const rawHandler: RouteHandler = async (ctx: HttpContext) => {
+        // Validation logic
+        if (bodySchema) {
+          (ctx as any).body = await validateSchema(
+            bodySchema,
+            ctx.body,
+            "body",
+          );
+        }
+        if (paramsSchema) {
+          (ctx as any).params = await validateSchema(
+            paramsSchema,
+            ctx.params,
+            "params",
+          );
+        }
+        if (querySchema) {
+          (ctx as any).query = await validateSchema(
+            querySchema,
+            ctx.query,
+            "query",
+          );
+        }
+
         const result = await (instance[route.handlerName] as Function).call(
           instance,
           ctx,
         );
         // Auto-serialize return values as JSON
-        if (result !== undefined) {
+        if (!ctx.responseSent) {
           ctx.json(result);
         }
       };
@@ -109,14 +158,6 @@ function buildPipeline(
 ): RouteHandler {
   return async (ctx: HttpContext) => {
     try {
-      // Run guards
-      for (const guard of guards) {
-        const allowed = await guard.canActivate(ctx);
-        if (!allowed) {
-          throw new ForbiddenException();
-        }
-      }
-
       // Build middleware chain (Koa-style onion)
       let index = -1;
       const dispatch = async (i: number): Promise<void> => {
@@ -125,6 +166,14 @@ function buildPipeline(
         }
         index = i;
         if (i === middleware.length) {
+          // Run guards AFTER middleware chain, BEFORE the handler
+          for (const guard of guards) {
+            const allowed = await guard.canActivate(ctx);
+            if (!allowed) {
+              throw new ForbiddenException();
+            }
+          }
+
           // End of chain: call the route handler
           await handler(ctx);
           return;
@@ -144,6 +193,34 @@ function buildPipeline(
           continue;
         }
       }
+
+      // All filters failed — last resort
+      console.error("Unhandled error (all filters failed):", error);
+      try {
+        if (!ctx.responseSent) {
+          ctx
+            .status(500)
+            .json({ statusCode: 500, message: "Internal Server Error" });
+        }
+      } catch {
+        /* response may already be sent or connection closed */
+      }
     }
   };
+}
+
+async function validateSchema(
+  schema: StandardSchemaV1,
+  data: unknown,
+  target: string,
+): Promise<unknown> {
+  const result = await schema["~standard"].validate(data);
+
+  if (result.issues) {
+    throw new BadRequestException(`Validation failed for ${target}`, [
+      ...result.issues,
+    ]);
+  }
+
+  return result.value;
 }

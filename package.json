@@ -6,6 +6,7 @@
     "prepare": "husky",
     "preinstall": "npx only-allow pnpm",
     "build": "pnpm -r build",
+    "dev": "pnpm -r --parallel dev",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",

@@ -53,3 +53,31 @@ export class InternalServerErrorException extends HttpException {
     this.name = "InternalServerErrorException";
   }
 }
+
+export class MethodNotAllowedException extends HttpException {
+  constructor(message = "Method Not Allowed", details?: unknown) {
+    super(405, message, details);
+    this.name = "MethodNotAllowedException";
+  }
+}
+
+export class ConflictException extends HttpException {
+  constructor(message = "Conflict", details?: unknown) {
+    super(409, message, details);
+    this.name = "ConflictException";
+  }
+}
+
+export class UnprocessableEntityException extends HttpException {
+  constructor(message = "Unprocessable Entity", details?: unknown) {
+    super(422, message, details);
+    this.name = "UnprocessableEntityException";
+  }
+}
+
+export class TooManyRequestsException extends HttpException {
+  constructor(message = "Too Many Requests", details?: unknown) {
+    super(429, message, details);
+    this.name = "TooManyRequestsException";
+  }
+}

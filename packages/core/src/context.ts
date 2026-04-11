@@ -10,11 +10,7 @@
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface InjectableContext {}
 
-export type ResolvedContext<T = any> = keyof InjectableContext extends never
-  ? T
-  : InjectableContext;
-
-export interface HttpContext<Context = ResolvedContext> {
+export interface HttpContext extends InjectableContext {
   /** HTTP method (lowercase) */
   readonly method: string;
   /** Request path */
@@ -29,14 +25,15 @@ export interface HttpContext<Context = ResolvedContext> {
   readonly body: unknown;
 
   /** Set response status code */
-  status(code: number): HttpContext<Context>;
+  status(code: number): HttpContext;
   /** Send JSON response */
   json(data: unknown): void;
   /** Send text/html response */
   send(data: string | Buffer): void;
   /** Set a response header */
-  setHeader(name: string, value: string): HttpContext<Context>;
-
-  /** Access to raw framework-specific context */
-  readonly raw: Context;
+  setHeader(name: string, value: string): HttpContext;
+  /** Redirect to a URL */
+  redirect(url: string, statusCode?: number): void;
+  /** Check if a response has already been sent */
+  readonly responseSent: boolean;
 }

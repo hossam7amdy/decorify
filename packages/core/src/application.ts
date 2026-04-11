@@ -1,54 +1,58 @@
 import type { HttpAdapter } from "./adapters/http-adapter.js";
-import { Container, type Constructor, type Provider } from "@decorify/di";
-import type { MiddlewareHandler, Guard, ExceptionFilter } from "./types.js";
+import {
+  Container,
+  type Constructor,
+  type Provider,
+  type Token,
+} from "@decorify/di";
+import type {
+  MiddlewareHandler,
+  GuardType,
+  ExceptionFilterType,
+} from "./types.js";
 import { LifecycleManager } from "./lifecycle/manager.js";
 import { registerControllers } from "./router.js";
 
-export class Application {
-  private adapter: HttpAdapter;
+interface ApplicationOptions {
+  controllers: ReadonlyArray<Constructor>;
+  globalProviders?: ReadonlyArray<Provider>;
+}
+
+export class Application<Adapter> {
+  readonly adapter: HttpAdapter<Adapter>;
+  private initialized = false;
   private container = new Container();
   private lifecycle = new LifecycleManager();
   private controllers: Constructor[] = [];
   private globalMiddleware: MiddlewareHandler[] = [];
-  private globalGuards: Guard[] = [];
-  private globalFilters: ExceptionFilter[] = [];
+  private globalGuards: GuardType[] = [];
+  private globalFilters: ExceptionFilterType[] = [];
 
-  protected constructor(adapter: HttpAdapter) {
+  private constructor(adapter: HttpAdapter<Adapter>) {
     this.adapter = adapter;
   }
 
-  static async create(
-    controllers: Constructor[],
-    adapter: HttpAdapter,
-  ): Promise<Application> {
+  static async create<Adapter>(
+    adapter: HttpAdapter<Adapter>,
+    options: ApplicationOptions,
+  ): Promise<Application<Adapter>> {
     const app = new Application(adapter);
 
-    // Defensive copy to avoid external mutations
-    app.controllers = [...controllers];
+    app.controllers = [...options.controllers];
 
-    // Register all controllers and build route pipelines
-    registerControllers(
-      app.container,
-      app.adapter,
-      app.controllers,
-      app.lifecycle,
-      {
-        globalMiddleware: app.globalMiddleware,
-        globalGuards: app.globalGuards,
-        globalFilters: app.globalFilters,
-      },
-    );
+    if (options.globalProviders) {
+      options.globalProviders.forEach((provider) =>
+        app.container.register(provider),
+      );
+    }
+
+    await app.container.initialize();
 
     return app;
   }
 
-  resolve<T>(token: Constructor<T>): T {
+  resolve<T>(token: Token<T>): T {
     return this.container.resolve(token);
-  }
-
-  register<T>(...providers: Provider<T>[]): this {
-    providers.forEach((provider) => this.container.register(provider));
-    return this;
   }
 
   useMiddleware(...handlers: MiddlewareHandler[]): this {
@@ -56,29 +60,50 @@ export class Application {
     return this;
   }
 
-  useGlobalGuard(...guards: Guard[]): this {
+  useGlobalGuard(...guards: GuardType[]): this {
     this.globalGuards.push(...guards);
     return this;
   }
 
-  useGlobalFilter(...filters: ExceptionFilter[]): this {
+  useGlobalFilter(...filters: ExceptionFilterType[]): this {
     this.globalFilters.push(...filters);
     return this;
   }
 
-  async listen(port: number, callback?: () => void): Promise<void> {
+  async init(): Promise<void> {
+    if (this.initialized) {
+      throw new Error("Application is already initialized");
+    }
+    this.initialized = true;
+
+    registerControllers(
+      this.container,
+      this.adapter,
+      this.controllers,
+      this.lifecycle,
+      {
+        globalMiddleware: this.globalMiddleware,
+        globalGuards: this.globalGuards,
+        globalFilters: this.globalFilters,
+      },
+    );
+
+    for (const instance of this.container.getInstances()) {
+      this.lifecycle.track(instance);
+    }
+
     await this.lifecycle.callOnInit();
+  }
+
+  async listen(port: number, callback?: () => void): Promise<void> {
+    await this.init();
 
     await this.adapter.listen(port, callback);
   }
 
   async close(): Promise<void> {
     await this.lifecycle.callOnDestroy();
+    await this.container.dispose();
     await this.adapter.close();
-  }
-
-  /** Access the underlying HTTP framework instance (escape hatch) */
-  getAdapter(): HttpAdapter {
-    return this.adapter;
   }
 }

@@ -331,6 +331,10 @@ export class Container implements Resolver {
     return this.registry.has(token) || (this.parent?.has(token) ?? false);
   }
 
+  getInstances(): unknown[] {
+    return Array.from(this.instances.values());
+  }
+
   get isInInjectionContext(): boolean {
     return injectionContext.getStore() !== undefined;
   }
