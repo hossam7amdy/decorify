@@ -45,6 +45,7 @@ export class ExpressAdapter implements HttpAdapter<Application> {
         return;
       }
       this.server.close((err) => {
+        this.server = null;
         if (err) reject(err);
         else resolve();
       });
