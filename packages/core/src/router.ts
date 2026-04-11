@@ -134,7 +134,7 @@ export function registerControllers(
           ctx,
         );
         // Auto-serialize return values as JSON
-        if (result !== undefined && !ctx.responseSent) {
+        if (!ctx.responseSent) {
           ctx.json(result);
         }
       };
