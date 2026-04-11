@@ -6,5 +6,5 @@
     "@decorify/di": "0.0.1",
     "@decorify/express-adapter": "0.0.1"
   },
-  "changesets": []
+  "changesets": ["eleven-laws-beam.md"]
 }
