@@ -4,7 +4,7 @@ import {
   InjectionToken,
   type FactoryProvider,
 } from "@decorify/core";
-import { CONFIG } from "./config.provider.ts";
+import { CONFIG } from "./config.provider.js";
 
 export const MONGO_DB = new InjectionToken<Db>("MONGO_DB");
 
