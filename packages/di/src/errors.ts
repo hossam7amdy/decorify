@@ -2,12 +2,11 @@ import type { Token } from "./types.js";
 import type { Lifetime } from "./lifetime.js";
 import { tokenName } from "./utils.js";
 
-const prefix = "[DI] ";
-
 export class DIError extends Error {
   readonly details?: unknown;
 
   constructor(message: string, details?: unknown) {
+    const prefix = "[DI] ";
     super(prefix + message);
     this.name = this.constructor.name;
     this.details = details;
@@ -27,9 +26,17 @@ export class DISuppressedError extends DIError {
   readonly suppressed: unknown;
 
   constructor(error: unknown, suppressed: unknown, message: string) {
-    super(prefix + message);
+    super(message);
     this.error = error;
     this.suppressed = suppressed;
+  }
+
+  override toJSON() {
+    return {
+      ...super.toJSON(),
+      error: this.error,
+      suppressed: this.suppressed,
+    };
   }
 }
 
@@ -129,8 +136,7 @@ export class InitializeError extends DIError {
 
   override toJSON() {
     return {
-      name: this.constructor.name,
-      message: this.message,
+      ...super.toJSON(),
       errors: this.errors,
     };
   }
