@@ -11,6 +11,12 @@ import {
   UseMiddleware,
   UseFilter,
 } from "./http/middleware-decorator.js";
+import {
+  ValidateBody,
+  ValidateParams,
+  ValidateQuery,
+  Validate,
+} from "./http/decorators.js";
 import type { Guard, ExceptionFilter } from "./types.js";
 
 describe("Router", () => {
@@ -416,5 +422,217 @@ describe("Router", () => {
     expect(mockMonitor.logError).toHaveBeenCalledWith("Controller failure");
     expect(mockCtx.status).toHaveBeenCalledWith(400);
     expect(mockCtx.json).toHaveBeenCalledWith({ customError: true });
+  });
+
+  describe("Validation", () => {
+    const createMockSchema = (validateFn: any) => ({
+      "~standard": {
+        version: 1,
+        vendor: "mock",
+        validate: validateFn,
+      },
+    });
+
+    it("should validate and transform body and update context", async () => {
+      const mockSchema = createMockSchema((value: any) => ({
+        value: { ...value, validated: true },
+      }));
+
+      @Injectable()
+      @Controller()
+      class TestController {
+        @Get("/")
+        @ValidateBody(mockSchema as any)
+        index(ctx: HttpContext) {
+          return ctx.body;
+        }
+      }
+
+      registerControllers(
+        container,
+        mockAdapter as HttpAdapter,
+        [TestController],
+        mockLifecycle,
+        { globalMiddleware: [], globalGuards: [], globalFilters: [] },
+      );
+
+      const handler = mockAdapter.registerRoute.mock.calls[0][2];
+      const mockCtx = {
+        body: { foo: "bar" },
+        status: vi.fn().mockReturnThis(),
+        json: vi.fn(),
+      } as unknown as HttpContext;
+
+      await handler(mockCtx);
+
+      expect(mockCtx.json).toHaveBeenCalledWith({
+        foo: "bar",
+        validated: true,
+      });
+      expect(mockCtx.body).toEqual({ foo: "bar", validated: true });
+    });
+
+    it("should throw BadRequestException on body validation failure", async () => {
+      const mockIssues = [{ message: "Invalid title", path: ["title"] }];
+      const mockSchema = createMockSchema(() => ({
+        issues: mockIssues,
+      }));
+
+      @Injectable()
+      @Controller()
+      class TestController {
+        @Get("/")
+        @ValidateBody(mockSchema as any)
+        index() {}
+      }
+
+      registerControllers(
+        container,
+        mockAdapter as HttpAdapter,
+        [TestController],
+        mockLifecycle,
+        { globalMiddleware: [], globalGuards: [], globalFilters: [] },
+      );
+
+      const handler = mockAdapter.registerRoute.mock.calls[0][2];
+      const mockCtx = {
+        body: {},
+        status: vi.fn().mockReturnThis(),
+        json: vi.fn(),
+      } as unknown as HttpContext;
+
+      await handler(mockCtx);
+
+      expect(mockCtx.status).toHaveBeenCalledWith(400);
+      expect(mockCtx.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: "BadRequestException",
+          statusCode: 400,
+          message: "Validation failed for body",
+          details: mockIssues,
+        }),
+      );
+    });
+
+    it("should validate params and query", async () => {
+      const paramSchema = createMockSchema((v: any) => ({
+        value: { ...v, checked: true },
+      }));
+      const querySchema = createMockSchema((v: any) => ({
+        value: { ...v, checked: true },
+      }));
+
+      @Injectable()
+      @Controller()
+      class TestController {
+        @Get("/:id")
+        @ValidateParams(paramSchema as any)
+        @ValidateQuery(querySchema as any)
+        index(ctx: HttpContext) {
+          return { params: ctx.params, query: ctx.query };
+        }
+      }
+
+      registerControllers(
+        container,
+        mockAdapter as HttpAdapter,
+        [TestController],
+        mockLifecycle,
+        { globalMiddleware: [], globalGuards: [], globalFilters: [] },
+      );
+
+      const handler = mockAdapter.registerRoute.mock.calls[0][2];
+      const mockCtx = {
+        params: { id: "123" },
+        query: { search: "test" },
+        status: vi.fn().mockReturnThis(),
+        json: vi.fn(),
+      } as unknown as HttpContext;
+
+      await handler(mockCtx);
+
+      expect(mockCtx.json).toHaveBeenCalledWith({
+        params: { id: "123", checked: true },
+        query: { search: "test", checked: true },
+      });
+    });
+
+    it("should support async validation", async () => {
+      const mockSchema = createMockSchema(async (value: any) => {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        return { value: { ...value, async: true } };
+      });
+
+      @Injectable()
+      @Controller()
+      class TestController {
+        @Get("/")
+        @ValidateBody(mockSchema as any)
+        index(ctx: HttpContext) {
+          return ctx.body;
+        }
+      }
+
+      registerControllers(
+        container,
+        mockAdapter as HttpAdapter,
+        [TestController],
+        mockLifecycle,
+        { globalMiddleware: [], globalGuards: [], globalFilters: [] },
+      );
+
+      const handler = mockAdapter.registerRoute.mock.calls[0][2];
+      const mockCtx = {
+        body: { foo: "bar" },
+        status: vi.fn().mockReturnThis(),
+        json: vi.fn(),
+      } as unknown as HttpContext;
+
+      await handler(mockCtx);
+
+      expect(mockCtx.json).toHaveBeenCalledWith({ foo: "bar", async: true });
+    });
+
+    it("should support @Validate shorthand decorator", async () => {
+      const bodySchema = createMockSchema((v: any) => ({
+        value: { ...v, vBody: true },
+      }));
+      const paramSchema = createMockSchema((v: any) => ({
+        value: { ...v, vParam: true },
+      }));
+
+      @Injectable()
+      @Controller()
+      class TestController {
+        @Get("/:id")
+        @Validate({ body: bodySchema as any, params: paramSchema as any })
+        index(ctx: HttpContext) {
+          return { body: ctx.body, params: ctx.params };
+        }
+      }
+
+      registerControllers(
+        container,
+        mockAdapter as HttpAdapter,
+        [TestController],
+        mockLifecycle,
+        { globalMiddleware: [], globalGuards: [], globalFilters: [] },
+      );
+
+      const handler = mockAdapter.registerRoute.mock.calls[0][2];
+      const mockCtx = {
+        body: { foo: "bar" },
+        params: { id: "1" },
+        status: vi.fn().mockReturnThis(),
+        json: vi.fn(),
+      } as unknown as HttpContext;
+
+      await handler(mockCtx);
+
+      expect(mockCtx.json).toHaveBeenCalledWith({
+        body: { foo: "bar", vBody: true },
+        params: { id: "1", vParam: true },
+      });
+    });
   });
 });

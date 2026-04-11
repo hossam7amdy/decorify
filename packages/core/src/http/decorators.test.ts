@@ -1,5 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { Controller, Get, Post } from "./decorators.js";
+import {
+  Controller,
+  Get,
+  Post,
+  ValidateBody,
+  ValidateParams,
+  ValidateQuery,
+  Validate,
+} from "./decorators.js";
 
 describe("HTTP Decorators", () => {
   it("@Controller should set basePath in metadata", () => {
@@ -66,5 +74,61 @@ describe("HTTP Decorators", () => {
       @Get("/bad")
       class Bad {}
     }).toThrow("@GET can only be used on methods.");
+  });
+
+  describe("Validation Decorators", () => {
+    const mockSchema = { "~standard": { version: 1, vendor: "mock" } } as any;
+
+    it("@ValidateBody should set methodBodySchemas in metadata", () => {
+      class TestController {
+        @ValidateBody(mockSchema)
+        index() {}
+      }
+
+      const metadata = (TestController as any)[Symbol.metadata];
+      expect(metadata.methodBodySchemas.get("index")).toBe(mockSchema);
+    });
+
+    it("@ValidateParams should set methodParamsSchemas in metadata", () => {
+      class TestController {
+        @ValidateParams(mockSchema)
+        index() {}
+      }
+
+      const metadata = (TestController as any)[Symbol.metadata];
+      expect(metadata.methodParamsSchemas.get("index")).toBe(mockSchema);
+    });
+
+    it("@ValidateQuery should set methodQuerySchemas in metadata", () => {
+      class TestController {
+        @ValidateQuery(mockSchema)
+        index() {}
+      }
+
+      const metadata = (TestController as any)[Symbol.metadata];
+      expect(metadata.methodQuerySchemas.get("index")).toBe(mockSchema);
+    });
+
+    it("@Validate shorthand should set multiple schemas in metadata", () => {
+      const bodySchema = { ...mockSchema };
+      const paramSchema = { ...mockSchema };
+
+      class TestController {
+        @Validate({ body: bodySchema, params: paramSchema })
+        index() {}
+      }
+
+      const metadata = (TestController as any)[Symbol.metadata];
+      expect(metadata.methodBodySchemas.get("index")).toBe(bodySchema);
+      expect(metadata.methodParamsSchemas.get("index")).toBe(paramSchema);
+      expect(metadata.methodQuerySchemas?.get("index")).toBeUndefined();
+    });
+
+    it("should throw error if @ValidateBody is used on a class", () => {
+      expect(() => {
+        @ValidateBody(mockSchema)
+        class Bad {}
+      }).toThrow("@methodBodySchemas can only be used on methods.");
+    });
   });
 });

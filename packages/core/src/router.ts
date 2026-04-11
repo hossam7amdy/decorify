@@ -10,10 +10,14 @@ import type {
 } from "./types.js";
 import type { ControllerMetadata } from "./http/metadata.js";
 import type { Constructor } from "@decorify/di";
-import { ForbiddenException } from "./errors/http-exception.js";
+import {
+  ForbiddenException,
+  BadRequestException,
+} from "./errors/http-exception.js";
 import { DefaultExceptionFilter } from "./errors/exception-filter.js";
 import { Container } from "@decorify/di";
 import { LifecycleManager } from "./lifecycle/manager.js";
+import type { StandardSchemaV1 } from "./standard-schema.js";
 
 export interface RouterOptions {
   globalMiddleware: MiddlewareHandler[];
@@ -97,7 +101,34 @@ export function registerControllers(
         return f;
       });
 
+      const bodySchema = metadata.methodBodySchemas?.get(route.handlerName);
+      const paramsSchema = metadata.methodParamsSchemas?.get(route.handlerName);
+      const querySchema = metadata.methodQuerySchemas?.get(route.handlerName);
+
       const rawHandler: RouteHandler = async (ctx: HttpContext) => {
+        // Validation logic
+        if (bodySchema) {
+          (ctx as any).body = await validateSchema(
+            bodySchema,
+            ctx.body,
+            "body",
+          );
+        }
+        if (paramsSchema) {
+          (ctx as any).params = await validateSchema(
+            paramsSchema,
+            ctx.params,
+            "params",
+          );
+        }
+        if (querySchema) {
+          (ctx as any).query = await validateSchema(
+            querySchema,
+            ctx.query,
+            "query",
+          );
+        }
+
         const result = await (instance[route.handlerName] as Function).call(
           instance,
           ctx,
@@ -176,4 +207,20 @@ function buildPipeline(
       }
     }
   };
+}
+
+async function validateSchema(
+  schema: StandardSchemaV1,
+  data: unknown,
+  target: string,
+): Promise<unknown> {
+  const result = await schema["~standard"].validate(data);
+
+  if (result.issues) {
+    throw new BadRequestException(`Validation failed for ${target}`, [
+      ...result.issues,
+    ]);
+  }
+
+  return result.value;
 }

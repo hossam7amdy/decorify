@@ -10,5 +10,8 @@ export {
   Head,
   Options,
   All,
+  ValidateBody,
+  ValidateParams,
+  ValidateQuery,
 } from "./decorators.js";
 export { UseMiddleware, UseGuard, UseFilter } from "./middleware-decorator.js";

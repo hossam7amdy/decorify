@@ -1,5 +1,6 @@
 import { DI_INJECTABLE, DI_LIFETIME, Lifetime } from "@decorify/di";
 import type { RouteMetadata } from "./metadata.js";
+import type { StandardSchemaV1 } from "../standard-schema.js";
 
 function createRouteDecorator(httpMethod: string) {
   return function (path = "") {
@@ -39,3 +40,49 @@ export function Controller(basePath = "") {
     context.metadata[DI_LIFETIME] = Lifetime.SINGLETON;
   };
 }
+
+function createValidationDecorator(metadataKey: string) {
+  return function (schema: StandardSchemaV1) {
+    return function (_value: unknown, context: DecoratorContext) {
+      if (context.kind !== "method") {
+        throw new Error(`@${metadataKey} can only be used on methods.`);
+      }
+
+      const map =
+        (context.metadata[metadataKey] as Map<
+          string | symbol,
+          StandardSchemaV1
+        >) ?? new Map<string | symbol, StandardSchemaV1>();
+      map.set(context.name, schema);
+      context.metadata[metadataKey] = map;
+    };
+  };
+}
+
+export const ValidateBody = createValidationDecorator("methodBodySchemas");
+export const ValidateParams = createValidationDecorator("methodParamsSchemas");
+export const ValidateQuery = createValidationDecorator("methodQuerySchemas");
+
+interface ValidateOption {
+  body?: StandardSchemaV1;
+  params?: StandardSchemaV1;
+  query?: StandardSchemaV1;
+}
+
+export const Validate = (options: ValidateOption) => {
+  return function (value: unknown, context: DecoratorContext) {
+    if (context.kind !== "method") {
+      throw new Error("@Validate can only be used on methods.");
+    }
+
+    if (options.body) {
+      ValidateBody(options.body)(value, context);
+    }
+    if (options.params) {
+      ValidateParams(options.params)(value, context);
+    }
+    if (options.query) {
+      ValidateQuery(options.query)(value, context);
+    }
+  };
+};

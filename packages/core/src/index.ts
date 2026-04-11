@@ -29,6 +29,9 @@ export {
   UseMiddleware,
   UseGuard,
   UseFilter,
+  ValidateBody,
+  ValidateParams,
+  ValidateQuery,
 } from "./http/index.js";
 export type { RouteMetadata, ControllerMetadata } from "./http/index.js";
 
