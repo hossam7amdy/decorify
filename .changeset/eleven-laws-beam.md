@@ -1,7 +1,7 @@
 ---
-"@decorify/core": patch
-"@decorify/di": patch
-"@decorify/express-adapter": patch
+"@decorify/core": minor
+"@decorify/di": minor
+"@decorify/express-adapter": minor
 ---
 
 Automate release workflow and implement recent framework improvements
