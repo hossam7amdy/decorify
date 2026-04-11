@@ -143,11 +143,12 @@ const authGuard: Guard = {
 
 // Global
 app.useMiddleware(logger);
-app.useGlobalGuard(authGuard);
+// Pass instances or DI Constructors!
+app.useGlobalGuard(AuthGuard);
 
 // Controller-level
 @UseMiddleware(logger)
-@UseGuard(authGuard)
+@UseGuard(AuthGuard)
 @Controller("/admin")
 class AdminController {
   /* ... */
@@ -155,13 +156,15 @@ class AdminController {
 
 // Method-level
 class PostController {
-  @UseGuard(authGuard)
+  @UseGuard(authGuard) // Can also pass instances directly
   @Delete("/:id")
   delete(ctx: HttpContext) {
     /* ... */
   }
 }
 ```
+
+Guards run **after middleware** and before the route handler. This allows middleware to parse payloads or set state (e.g. `ctx.user`) which guards can subsequently authorize.
 
 ## Exception Handling
 
@@ -179,11 +182,11 @@ import {
 // Throw anywhere in a handler or guard
 throw new NotFoundException("User not found");
 
-// Apply globally
-app.useGlobalFilter(new DefaultExceptionFilter());
+// Apply globally (by instance or constructor)
+app.useGlobalFilter(DefaultExceptionFilter);
 
 // Or per controller / method
-@UseFilter(new DefaultExceptionFilter())
+@UseFilter(DefaultExceptionFilter)
 @Controller("/users")
 class UserController {
   /* ... */
@@ -194,13 +197,20 @@ class UserController {
 
 ```ts
 import type { ExceptionFilter, HttpContext } from "@decorify/core";
+import { Injectable, inject } from "@decorify/core";
 
+@Injectable()
 class MyFilter implements ExceptionFilter {
+  private logger = inject(LoggerService);
+
   catch(error: Error, ctx: HttpContext): void {
+    this.logger.error(error);
     ctx.status(422).json({ message: error.message });
   }
 }
 ```
+
+_Note: `@UseGuard` and `@UseFilter` fully support `@decorify/di`. Passing a class reference (constructor) allows the framework to dynamically resolve your guard or filter with its injected dependencies!_
 
 ## Lifecycle Hooks
 

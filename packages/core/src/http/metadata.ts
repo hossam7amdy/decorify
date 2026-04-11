@@ -1,4 +1,8 @@
-import type { MiddlewareHandler, Guard, ExceptionFilter } from "../types.js";
+import type {
+  MiddlewareHandler,
+  GuardType,
+  ExceptionFilterType,
+} from "../types.js";
 
 export interface RouteMetadata {
   method: string;
@@ -10,9 +14,9 @@ export interface ControllerMetadata {
   basePath: string;
   routes: RouteMetadata[];
   classMiddleware?: MiddlewareHandler[];
-  classGuards?: Guard[];
-  classFilters?: ExceptionFilter[];
+  classGuards?: GuardType[];
+  classFilters?: ExceptionFilterType[];
   methodMiddleware?: Map<string | symbol, MiddlewareHandler[]>;
-  methodGuards?: Map<string | symbol, Guard[]>;
-  methodFilters?: Map<string | symbol, ExceptionFilter[]>;
+  methodGuards?: Map<string | symbol, GuardType[]>;
+  methodFilters?: Map<string | symbol, ExceptionFilterType[]>;
 }

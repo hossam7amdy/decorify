@@ -11,8 +11,6 @@ describe("Application", () => {
       registerRoute: vi.fn(),
       listen: vi.fn().mockResolvedValue(undefined),
       close: vi.fn().mockResolvedValue(undefined),
-      useMiddleware: vi.fn(),
-      useErrorHandler: vi.fn(),
       getInstance: vi.fn(),
     };
   });
@@ -66,10 +64,45 @@ describe("Application", () => {
     expect(app["globalMiddleware"]).toHaveLength(1);
   });
 
-  it("should return the adapter via getAdapter()", async () => {
+  it("should return the adapter via app.adapter", async () => {
     const app = await Application.create(mockAdapter, {
       controllers: [],
     });
-    expect(app.getAdapter()).toBe(mockAdapter);
+    expect(app.adapter).toBe(mockAdapter);
+  });
+
+  it("should initialize and dispose the DI container during lifecycle", async () => {
+    const app = await Application.create(mockAdapter, {
+      controllers: [],
+    });
+
+    const initSpy = vi.spyOn(app["container"], "initialize");
+    const disposeSpy = vi.spyOn(app["container"], "dispose");
+
+    await app.init();
+    expect(initSpy).toHaveBeenCalled();
+
+    await app.close();
+    expect(disposeSpy).toHaveBeenCalled();
+  });
+
+  it("should track all resolved DI instances for lifecycle hooks", async () => {
+    @Injectable()
+    class MyService {
+      onInit() {}
+    }
+
+    const app = await Application.create(mockAdapter, {
+      controllers: [],
+    });
+
+    app["container"].register(MyService);
+    const instance = app["container"].resolve(MyService);
+
+    const trackSpy = vi.spyOn(app["lifecycle"], "track");
+
+    await app.init();
+
+    expect(trackSpy).toHaveBeenCalledWith(instance);
   });
 });

@@ -1,4 +1,8 @@
-import type { MiddlewareHandler, Guard, ExceptionFilter } from "../types.js";
+import type {
+  MiddlewareHandler,
+  GuardType,
+  ExceptionFilterType,
+} from "../types.js";
 
 /**
  * Attach middleware to a controller class or a specific method.
@@ -34,7 +38,7 @@ export function UseMiddleware(...middleware: MiddlewareHandler[]) {
  * Guards run after middleware and before the route handler.
  * If any guard returns false, a ForbiddenException is thrown.
  */
-export function UseGuard(...guards: Guard[]) {
+export function UseGuard(...guards: GuardType[]) {
   return function (_value: unknown, context: DecoratorContext) {
     if (context.kind !== "class" && context.kind !== "method") {
       throw new Error("@UseGuard can only be used on classes or methods.");
@@ -42,11 +46,11 @@ export function UseGuard(...guards: Guard[]) {
 
     if (context.kind === "class") {
       context.metadata.classGuards ??= [];
-      (context.metadata.classGuards as Guard[]).push(...guards);
+      (context.metadata.classGuards as GuardType[]).push(...guards);
     } else {
       const map =
-        (context.metadata.methodGuards as Map<string | symbol, Guard[]>) ??
-        new Map<string | symbol, Guard[]>();
+        (context.metadata.methodGuards as Map<string | symbol, GuardType[]>) ??
+        new Map<string | symbol, GuardType[]>();
       const existing = map.get(context.name) ?? [];
       existing.push(...guards);
       map.set(context.name, existing);
@@ -60,7 +64,7 @@ export function UseGuard(...guards: Guard[]) {
  * Filters catch errors thrown by guards or the route handler.
  * Method-level filters are checked before class-level filters.
  */
-export function UseFilter(...filters: ExceptionFilter[]) {
+export function UseFilter(...filters: ExceptionFilterType[]) {
   return function (_value: unknown, context: DecoratorContext) {
     if (context.kind !== "class" && context.kind !== "method") {
       throw new Error("@UseFilter can only be used on classes or methods.");
@@ -68,13 +72,13 @@ export function UseFilter(...filters: ExceptionFilter[]) {
 
     if (context.kind === "class") {
       context.metadata.classFilters ??= [];
-      (context.metadata.classFilters as ExceptionFilter[]).push(...filters);
+      (context.metadata.classFilters as ExceptionFilterType[]).push(...filters);
     } else {
       const map =
         (context.metadata.methodFilters as Map<
           string | symbol,
-          ExceptionFilter[]
-        >) ?? new Map<string | symbol, ExceptionFilter[]>();
+          ExceptionFilterType[]
+        >) ?? new Map<string | symbol, ExceptionFilterType[]>();
       const existing = map.get(context.name) ?? [];
       existing.push(...filters);
       map.set(context.name, existing);

@@ -1,12 +1,6 @@
 import type { Application, Request, Response, NextFunction } from "express";
 import express from "express";
-import type {
-  HttpAdapter,
-  HttpContext,
-  RouteHandler,
-  MiddlewareHandler,
-  ErrorHandler,
-} from "@decorify/core";
+import type { HttpAdapter, HttpContext, RouteHandler } from "@decorify/core";
 import type { Server } from "node:http";
 
 declare module "@decorify/core" {
@@ -31,33 +25,6 @@ export class ExpressAdapter implements HttpAdapter<Application> {
       (req: Request, res: Response, next: NextFunction) => {
         const ctx = this.createContext(req, res);
         Promise.resolve(handler(ctx)).catch(next);
-      },
-    );
-  }
-
-  useMiddleware(handler: MiddlewareHandler): void {
-    this.app.use((req: Request, res: Response, next: NextFunction) => {
-      const ctx = this.createContext(req, res);
-      Promise.resolve(
-        handler(ctx, async () => {
-          await new Promise<void>((resolve, reject) => {
-            next((err?: Error) => {
-              if (err) reject(err);
-              else resolve();
-            });
-            // If next() is synchronous (no error callback support), resolve immediately
-            resolve();
-          });
-        }),
-      ).catch(next);
-    });
-  }
-
-  useErrorHandler(handler: ErrorHandler): void {
-    this.app.use(
-      (err: Error, req: Request, res: Response, _next: NextFunction) => {
-        const ctx = this.createContext(req, res);
-        handler(err, ctx);
       },
     );
   }
@@ -90,6 +57,7 @@ export class ExpressAdapter implements HttpAdapter<Application> {
 
   private createContext(req: Request, res: Response): HttpContext {
     let statusCode = 200;
+    let sent = false;
 
     const ctx: HttpContext = {
       req,
@@ -107,16 +75,30 @@ export class ExpressAdapter implements HttpAdapter<Application> {
       },
 
       json(data: unknown) {
+        if (sent || res.headersSent) return;
+        sent = true;
         res.status(statusCode).json(data);
       },
 
       send(data: string | Buffer) {
+        if (sent || res.headersSent) return;
+        sent = true;
         res.status(statusCode).send(data);
       },
 
       setHeader(name: string, value: string) {
         res.setHeader(name, value);
         return ctx;
+      },
+
+      redirect(url: string, code?: number) {
+        if (sent || res.headersSent) return;
+        sent = true;
+        res.redirect(code ?? 302, url);
+      },
+
+      get responseSent() {
+        return sent || res.headersSent;
       },
     };
 

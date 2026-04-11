@@ -40,7 +40,7 @@ const adapter = new ExpressAdapter(expressApp);
 
 ### Accessing the Express instance
 
-Use `app.getAdapter().getInstance()` to retrieve the underlying Express application for framework-specific configuration:
+Use `app.adapter.getInstance()` to retrieve the underlying Express application for framework-specific configuration:
 
 ```ts
 const adapter = new ExpressAdapter();

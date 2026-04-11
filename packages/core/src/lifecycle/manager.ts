@@ -1,10 +1,10 @@
 import { hasOnInit, hasOnDestroy } from "./interfaces.js";
 
 export class LifecycleManager {
-  private instances: unknown[] = [];
+  private instances = new Set<unknown>();
 
   track(instance: unknown): void {
-    this.instances.push(instance);
+    this.instances.add(instance);
   }
 
   async callOnInit(): Promise<void> {

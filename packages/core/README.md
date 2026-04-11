@@ -19,7 +19,9 @@ import { Application } from "@decorify/core";
 import { ExpressAdapter } from "@decorify/express-adapter";
 import { UserController } from "./user.controller.js";
 
-const app = await Application.create([UserController], new ExpressAdapter());
+const app = await Application.create(new ExpressAdapter(), {
+  controllers: [UserController],
+});
 
 await app.listen(3000, () => console.log("Listening on port 3000"));
 ```
@@ -31,7 +33,9 @@ await app.listen(3000, () => console.log("Listening on port 3000"));
 Static async factory. Registers all controllers and builds route pipelines, then returns the `Application` instance.
 
 ```ts
-const app = await Application.create([UserController], adapter);
+const app = await Application.create(adapter, {
+  controllers: [UserController],
+});
 ```
 
 ### `app.useMiddleware(...handlers)`
@@ -52,9 +56,24 @@ Calls `onInit()` on lifecycle-aware instances, then starts the server.
 
 ### `app.close()`
 
-Calls `onDestroy()` on all tracked instances, then shuts down the adapter.
+Calls `onDestroy()` on all tracked instances, disposes the DI container, and shuts down the adapter.
 
-### `app.getAdapter()`
+### Graceful Shutdown
+
+To shut down gracefully on `SIGINT` or `SIGTERM`, ensure you call `app.close()`. This ensures all async hooks, open connections, and DI singletons (via `[Symbol.asyncDispose]`) are cleaned up.
+
+```ts
+const signals = ["SIGTERM", "SIGINT"] as const;
+signals.forEach((signal) => {
+  process.on(signal, async () => {
+    console.log(`\nReceived ${signal}, shutting down...`);
+    await app.close();
+    process.exit(0);
+  });
+});
+```
+
+### `app.adapter`
 
 Returns the underlying `HttpAdapter` instance.
 
@@ -69,6 +88,9 @@ import {
   Put,
   Patch,
   Delete,
+  Head,
+  Options,
+  All,
 } from "@decorify/core";
 import type { HttpContext } from "@decorify/core";
 
@@ -157,11 +179,11 @@ const authGuard: Guard = {
   },
 };
 
-// Global
-app.useGlobalGuard(authGuard);
+// Global (Pass instances or DI constructors)
+app.useGlobalGuard(AuthGuard);
 
 // Controller-level
-@UseGuard(authGuard)
+@UseGuard(AuthGuard)
 @Controller("/admin")
 class AdminController {
   /* ... */
@@ -169,7 +191,7 @@ class AdminController {
 
 // Method-level
 class UserController {
-  @UseGuard(authGuard)
+  @UseGuard(authGuard) // Supports instances too
   @Delete("/:id")
   delete(ctx: HttpContext) {
     /* ... */
@@ -177,7 +199,7 @@ class UserController {
 }
 ```
 
-Guards run before middleware and the route handler.
+Guards run **after middleware** and before the route handler. This allows middleware to parse payloads which guards can inspect.
 
 ## Exception Filters
 
@@ -192,11 +214,17 @@ import {
   UnauthorizedException, // 401
   ForbiddenException, // 403
   NotFoundException, // 404
+  MethodNotAllowedException, // 405
+  ConflictException, // 409
+  UnprocessableEntityException, // 422
+  TooManyRequestsException, // 429
   InternalServerErrorException, // 500
 } from "@decorify/core";
+import { HttpStatus } from "@decorify/core";
 
 throw new NotFoundException("User not found");
 throw new BadRequestException("Invalid input", { field: "email" });
+throw new HttpException(HttpStatus.NOT_IMPLEMENTED, "Not ready yet");
 ```
 
 ### `DefaultExceptionFilter`
@@ -206,22 +234,28 @@ Handles `HttpException` instances automatically. For unknown errors it logs and 
 ```ts
 import { DefaultExceptionFilter } from "@decorify/core";
 
-app.useGlobalFilter(new DefaultExceptionFilter());
+// Can pass either an instance or constructor
+app.useGlobalFilter(DefaultExceptionFilter);
 ```
 
 ### Custom filter
 
 ```ts
 import type { ExceptionFilter, HttpContext } from "@decorify/core";
+import { Injectable, inject } from "@decorify/core";
 
+@Injectable()
 class ValidationFilter implements ExceptionFilter {
+  private logger = inject(LoggerService);
+
   catch(error: Error, ctx: HttpContext): void {
+    this.logger.log(error);
     ctx.status(422).json({ message: error.message });
   }
 }
 
-// Apply at class or method level
-@UseFilter(new ValidationFilter())
+// Apply at class or method level (can pass class constructor for DI resolution)
+@UseFilter(ValidationFilter)
 @Controller("/users")
 class UserController {
   /* ... */
@@ -257,43 +291,33 @@ export class DatabaseService implements OnInit, OnDestroy {
 
 Every route handler receives an `HttpContext`:
 
-| Property / Method        | Description                                           |
-| ------------------------ | ----------------------------------------------------- |
-| `method`                 | HTTP method (lowercase)                               |
-| `path`                   | Request path                                          |
-| `params`                 | URL path parameters (`{ id: "42" }`)                  |
-| `query`                  | Query string parameters                               |
-| `headers`                | Request headers                                       |
-| `body`                   | Parsed request body                                   |
-| `status(code)`           | Set response status code (chainable)                  |
-| `json(data)`             | Send a JSON response                                  |
-| `send(data)`             | Send a plain text / Buffer response                   |
-| `setHeader(name, value)` | Set a response header (chainable)                     |
-| `raw`                    | Escape hatch to the underlying `{ req, res }` objects |
+| Property / Method        | Description                               |
+| ------------------------ | ----------------------------------------- |
+| `method`                 | HTTP method (lowercase)                   |
+| `path`                   | Request path                              |
+| `params`                 | URL path parameters (`{ id: "42" }`)      |
+| `query`                  | Query string parameters                   |
+| `headers`                | Request headers                           |
+| `body`                   | Parsed request body                       |
+| `status(code)`           | Set response status code (chainable)      |
+| `json(data)`             | Send a JSON response                      |
+| `send(data)`             | Send a plain text / Buffer response       |
+| `setHeader(name, value)` | Set a response header (chainable)         |
+| `redirect(url, code?)`   | Redirect to a URL                         |
+| `responseSent`           | Check if a response has already been sent |
+
+_Note: Access to underlying framework request/response objects is provided through `InjectableContext` module augmentation._
 
 ## Custom Adapters
 
 Implement `HttpAdapter` to integrate with any HTTP framework:
 
 ```ts
-import type {
-  HttpAdapter,
-  RouteHandler,
-  MiddlewareHandler,
-  ErrorHandler,
-} from "@decorify/core";
+import type { HttpAdapter, RouteHandler } from "@decorify/core";
 
 export class MyAdapter implements HttpAdapter {
   registerRoute(method: string, path: string, handler: RouteHandler): void {
     // Register route with your framework
-  }
-
-  useMiddleware(handler: MiddlewareHandler): void {
-    // Register global middleware
-  }
-
-  useErrorHandler(handler: ErrorHandler): void {
-    // Register global error handler
   }
 
   async listen(port: number, callback?: () => void): Promise<void> {

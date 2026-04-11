@@ -67,7 +67,7 @@ All decorators use the **Stage 3 `Symbol.metadata`** API. A polyfill in `package
 
 ### Request Pipeline (`packages/core/src/router.ts`)
 
-Each route builds a pipeline: **guards → middleware chain (Koa-style onion) → handler**. Errors are caught and passed through exception filters in order: method-level → class-level → global → DefaultExceptionFilter. Routes are sorted so static paths register before parameterized ones.
+Each route builds a pipeline: **middleware chain (Koa-style onion) → guards → handler**. Errors are caught and passed through exception filters in order: method-level → class-level → global → DefaultExceptionFilter. Routes are sorted so static paths register before parameterized ones.
 
 ### Dependency Injection (`packages/di/`)
 
