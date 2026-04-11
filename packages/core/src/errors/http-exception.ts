@@ -1,15 +1,17 @@
 export class HttpException extends Error {
-  constructor(
-    public readonly statusCode: number,
-    message: string,
-    public readonly details?: unknown,
-  ) {
+  readonly statusCode: number;
+  readonly details?: unknown;
+
+  constructor(statusCode: number, message: string, details?: unknown) {
     super(message);
-    this.name = "HttpException";
+    this.name = this.constructor.name;
+    this.statusCode = statusCode;
+    this.details = details;
   }
 
   toJSON() {
     return {
+      name: this.constructor.name,
       statusCode: this.statusCode,
       message: this.message,
       ...(this.details ? { details: this.details } : {}),

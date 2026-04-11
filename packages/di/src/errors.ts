@@ -2,23 +2,41 @@ import type { Token } from "./types.js";
 import type { Lifetime } from "./lifetime.js";
 import { tokenName } from "./utils.js";
 
-const prefix = "[DI] ";
+export class DIError extends Error {
+  readonly details?: unknown;
 
-export abstract class DIError extends Error {
-  constructor(message: string) {
+  constructor(message: string, details?: unknown) {
+    const prefix = "[DI] ";
     super(prefix + message);
     this.name = this.constructor.name;
+    this.details = details;
+  }
+
+  toJSON() {
+    return {
+      name: this.constructor.name,
+      message: this.message,
+      ...(this.details ? { details: this.details } : {}),
+    };
   }
 }
 
 export class DISuppressedError extends DIError {
-  constructor(
-    readonly error: unknown,
-    readonly suppressed: unknown,
-    message: string,
-  ) {
-    super(prefix + message);
-    this.name = this.constructor.name;
+  readonly error: unknown;
+  readonly suppressed: unknown;
+
+  constructor(error: unknown, suppressed: unknown, message: string) {
+    super(message);
+    this.error = error;
+    this.suppressed = suppressed;
+  }
+
+  override toJSON() {
+    return {
+      ...super.toJSON(),
+      error: this.error,
+      suppressed: this.suppressed,
+    };
   }
 }
 
@@ -102,7 +120,8 @@ export class InjectionContextError extends DIError {
 }
 
 export class InitializeError extends DIError {
-  constructor(public readonly errors: Array<{ token: Token; error: unknown }>) {
+  readonly errors: Array<{ token: Token; error: unknown }>;
+  constructor(errors: InitializeError["errors"]) {
     const summary = errors
       .map(
         ({ token, error }) =>
@@ -112,5 +131,13 @@ export class InitializeError extends DIError {
       )
       .join("\n");
     super(`initialize() failed for ${errors.length} provider(s):\n${summary}`);
+    this.errors = errors;
+  }
+
+  override toJSON() {
+    return {
+      ...super.toJSON(),
+      errors: this.errors,
+    };
   }
 }

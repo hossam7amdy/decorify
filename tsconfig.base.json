@@ -18,6 +18,8 @@
     "noUnusedParameters": true,
     "experimentalDecorators": false,
     "emitDecoratorMetadata": false,
+    "erasableSyntaxOnly": true,
+    "rewriteRelativeImportExtensions": true,
 
     /* Module */
     "module": "NodeNext",
