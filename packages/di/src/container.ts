@@ -298,7 +298,10 @@ export class Container implements Resolver {
     const tokens: Token[] = [];
 
     for (const [token, entry] of this.registry) {
-      if (entry.lifetime === Lifetime.SINGLETON) {
+      if (
+        entry.lifetime === Lifetime.SINGLETON &&
+        isFactoryProvider(entry.provider)
+      ) {
         tokens.push(token);
       }
     }
@@ -321,7 +324,7 @@ export class Container implements Resolver {
       throw new InitializeError(errors);
     }
 
-    return results.length - errors.length;
+    return results.length;
   }
 
   has(token: Token): boolean {

@@ -1365,7 +1365,7 @@ describe("DI Container", () => {
       container.register({ provide: VAL, useValue: 42 });
       container.register({ provide: ALIAS, useExisting: VAL });
 
-      await expect(container.initialize()).resolves.toBe(3);
+      await expect(container.initialize()).resolves.toBe(0);
     });
 
     it("should handle inter-dependent async factories via injectAsync()", async () => {

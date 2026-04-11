@@ -234,7 +234,7 @@ const db = container.resolve(DATABASE); // ✅
 const svc = container.resolve(APP_SERVICE); // ✅
 ```
 
-**Behaviour:**
+**Behavior:**
 
 - Already-resolved singletons are skipped — calling `initialize()` twice is safe.
 - Transient and scoped factories are intentionally ignored (they are not eager).
