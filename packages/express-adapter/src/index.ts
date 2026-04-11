@@ -10,7 +10,6 @@ import type {
 import type { Server } from "node:http";
 
 declare module "@decorify/core" {
-  interface InjectableAdapter extends Application {}
   interface InjectableContext {
     req: Request;
     res: Response;
@@ -93,6 +92,8 @@ export class ExpressAdapter implements HttpAdapter<Application> {
     let statusCode = 200;
 
     const ctx: HttpContext = {
+      req,
+      res,
       method: req.method.toLowerCase(),
       path: req.path,
       params: (req.params ?? {}) as Record<string, string>,
@@ -117,8 +118,6 @@ export class ExpressAdapter implements HttpAdapter<Application> {
         res.setHeader(name, value);
         return ctx;
       },
-
-      raw: { req, res },
     };
 
     return ctx;

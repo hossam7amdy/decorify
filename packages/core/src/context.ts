@@ -14,7 +14,9 @@ export type ResolvedContext<T = any> = keyof InjectableContext extends never
   ? T
   : InjectableContext;
 
-export interface HttpContext<Context = ResolvedContext> {
+export interface HttpContext<
+  Context = ResolvedContext,
+> extends InjectableContext {
   /** HTTP method (lowercase) */
   readonly method: string;
   /** Request path */
@@ -36,7 +38,4 @@ export interface HttpContext<Context = ResolvedContext> {
   send(data: string | Buffer): void;
   /** Set a response header */
   setHeader(name: string, value: string): HttpContext<Context>;
-
-  /** Access to raw framework-specific context */
-  readonly raw: Context;
 }

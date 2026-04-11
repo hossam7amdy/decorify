@@ -4,23 +4,7 @@ import type {
   MiddlewareHandler,
 } from "../types.js";
 
-/**
- * Interface for module augmentation.
- * Implementers can extend this interface to provide strong typing for the underlying adapter.
- *
- * @example
- * declare module '@decorify/core' {
- *   interface InjectableAdapter extends Express {}
- * }
- */
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
-export interface InjectableAdapter {}
-
-export type ResolvedAdapter<T = any> = keyof InjectableAdapter extends never
-  ? T
-  : InjectableAdapter;
-
-export interface HttpAdapter<Adapter = ResolvedAdapter> {
+export interface HttpAdapter<Adapter = any> {
   /** Register a route handler with the underlying framework */
   registerRoute(method: string, path: string, handler: RouteHandler): void;
 

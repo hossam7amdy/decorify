@@ -9,8 +9,8 @@ interface ApplicationOptions {
   globalProviders?: Provider[];
 }
 
-export class Application {
-  private adapter: HttpAdapter;
+export class Application<Adapter> {
+  private adapter: HttpAdapter<Adapter>;
   private container = new Container();
   private lifecycle = new LifecycleManager();
   private controllers: Constructor[] = [];
@@ -18,14 +18,14 @@ export class Application {
   private globalGuards: Guard[] = [];
   private globalFilters: ExceptionFilter[] = [];
 
-  protected constructor(adapter: HttpAdapter) {
+  protected constructor(adapter: HttpAdapter<Adapter>) {
     this.adapter = adapter;
   }
 
-  static async create(
-    adapter: HttpAdapter,
+  static async create<Adapter>(
+    adapter: HttpAdapter<Adapter>,
     options: ApplicationOptions,
-  ): Promise<Application> {
+  ): Promise<Application<Adapter>> {
     const app = new Application(adapter);
 
     app.controllers = options.controllers;
@@ -81,8 +81,8 @@ export class Application {
     await this.adapter.close();
   }
 
-  /** Access the underlying HTTP framework instance (escape hatch) */
-  getAdapter(): HttpAdapter {
+  /** Access the underlying HTTP framework instance */
+  getAdapter(): HttpAdapter<Adapter> {
     return this.adapter;
   }
 }
