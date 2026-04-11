@@ -1,0 +1,10 @@
+{
+  "mode": "pre",
+  "tag": "alpha",
+  "initialVersions": {
+    "@decorify/core": "0.0.1",
+    "@decorify/di": "0.0.1",
+    "@decorify/express-adapter": "0.0.1"
+  },
+  "changesets": []
+}
