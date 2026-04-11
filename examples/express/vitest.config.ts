@@ -15,6 +15,7 @@ export default defineConfig({
       },
     }),
   ],
+  oxc: false,
   test: {
     globals: true,
     environment: "node",

@@ -3,7 +3,7 @@ import type {
   CreateTodoSchema,
   TodoParamsSchema,
   UpdateTodoSchema,
-} from "./todo.schema.ts";
+} from "./todo.schema.js";
 
 export interface TodoDto {
   id: string;

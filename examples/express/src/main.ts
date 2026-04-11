@@ -1,5 +1,5 @@
 import { bootstrap } from "./app.js";
-import { CONFIG } from "./config.provider.ts";
+import { CONFIG } from "./config.provider.js";
 
 const { app } = await bootstrap();
 
