@@ -42,5 +42,11 @@
   "license": "ISC",
   "engines": {
     "node": ">=22.0.0"
+  },
+  "homepage": "https://github.com/hossam7amdy/decorify#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hossam7amdy/decorify",
+    "directory": "packages/di"
   }
 }

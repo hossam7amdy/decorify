@@ -46,5 +46,11 @@
   },
   "dependencies": {
     "@decorify/di": "workspace:*"
+  },
+  "homepage": "https://github.com/hossam7amdy/decorify#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hossam7amdy/decorify",
+    "directory": "packages/core"
   }
 }
