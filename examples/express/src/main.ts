@@ -1,15 +1,7 @@
-import { Application } from "@decorify/core";
-import { ExpressAdapter } from "@decorify/express-adapter";
-import { TodoController } from "./todo.module/todo.controller.js";
-import { DatabaseProvider } from "./database.provider.js";
-import { CONFIG, ConfigProvider } from "./config.provider.ts";
+import { bootstrap } from "./app.js";
+import { CONFIG } from "./config.provider.ts";
 
-const appExpressAdapter = new ExpressAdapter();
-
-const app = await Application.create(appExpressAdapter, {
-  controllers: [TodoController],
-  globalProviders: [ConfigProvider, DatabaseProvider],
-});
+const { app } = await bootstrap();
 
 const config = app.resolve(CONFIG);
 await app.listen(config.PORT, () => {

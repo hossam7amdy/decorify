@@ -1,7 +1,20 @@
-import type { HttpContext } from "@decorify/core";
-import { Controller, Get, Post } from "@decorify/core";
-import { inject } from "@decorify/core";
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  ValidateBody,
+  ValidateParams,
+  type HttpContext,
+  inject,
+} from "@decorify/core";
 import { UserService } from "./user.service.js";
+import {
+  CreateUserSchema,
+  UpdateUserSchema,
+  UserParamsSchema,
+} from "./user.schema.js";
 
 @Controller("/users")
 export class UserController {
@@ -9,24 +22,33 @@ export class UserController {
 
   @Get("/")
   async getAllUsers(_ctx: HttpContext) {
-    await new Promise((resolve) => setTimeout(resolve, 50));
     return this.userService.findAll();
   }
 
   @Get("/:id")
+  @ValidateParams(UserParamsSchema)
   async getUserById(ctx: HttpContext) {
-    const id = parseInt(ctx.params.id!, 10);
-    return this.userService.findById(id);
+    return this.userService.findById(ctx.params.id!);
   }
 
   @Post("/")
+  @ValidateBody(CreateUserSchema)
   async createUser(ctx: HttpContext) {
-    const newUser = this.userService.create(ctx.body as any);
+    const newUser = await this.userService.create(ctx.body as any);
     ctx.status(201).json(newUser);
   }
 
-  @Get("/error")
-  async triggerError(_ctx: HttpContext) {
-    throw new Error("Simulated database failure.");
+  @Patch("/:id")
+  @ValidateParams(UserParamsSchema)
+  @ValidateBody(UpdateUserSchema)
+  async updateUser(ctx: HttpContext) {
+    return this.userService.update(ctx.params.id!, ctx.body as any);
+  }
+
+  @Delete("/:id")
+  @ValidateParams(UserParamsSchema)
+  async deleteUser(ctx: HttpContext) {
+    await this.userService.delete(ctx.params.id!);
+    ctx.status(204).send("ok");
   }
 }
