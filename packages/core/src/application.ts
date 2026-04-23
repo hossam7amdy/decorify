@@ -16,6 +16,7 @@ import {
   CONTROLLER_META,
   type ControllerMeta,
 } from "./decorators/controller.ts";
+import { joinPath } from "./utils.ts";
 
 interface RegisteredRoute {
   method: HttpMethod;
@@ -54,6 +55,9 @@ export class Application {
     for (const mod of opts.modules) {
       for (const provider of mod.providers ?? []) {
         app.container.register(provider);
+      }
+      for (const controller of mod.controllers ?? []) {
+        app.container.register(controller);
       }
     }
 
@@ -173,10 +177,4 @@ export class Application {
   getRoutes(): readonly RegisteredRoute[] {
     return this.routes;
   }
-}
-
-function joinPath(a: string, b: string): string {
-  const left = a.replace(/\/+$/, "");
-  const right = b.startsWith("/") ? b : `/${b}`;
-  return (left + right).toString() || "/";
 }
