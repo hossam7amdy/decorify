@@ -1,108 +1,114 @@
-import type { Application, Request, Response, NextFunction } from "express";
 import express from "express";
-import type { HttpAdapter, HttpContext, RouteHandler } from "@decorify/core";
 import type { Server } from "node:http";
+import type { Express, Request, Response } from "express";
+import type { HttpAdapter, RouteDefinition } from "@decorify/core";
+import type { HttpContext, HttpRequest, HttpResponse } from "@decorify/core";
 
-declare module "@decorify/core" {
-  interface InjectableContext {
-    req: Request;
-    res: Response;
-  }
-}
+export type ExpressContext = HttpContext<Request, Response>;
 
-export class ExpressAdapter implements HttpAdapter<Application> {
-  private app: Application;
-  private server: Server | null = null;
+export class ExpressAdapter implements HttpAdapter<Express> {
+  readonly native: Express;
+  private server?: Server;
 
-  constructor(app?: Application) {
-    this.app = app ?? express();
-    this.app.use(express.json());
-  }
-
-  registerRoute(method: string, path: string, handler: RouteHandler): void {
-    this.app[method as keyof Application](
-      path,
-      (req: Request, res: Response, next: NextFunction) => {
-        const ctx = this.createContext(req, res);
-        Promise.resolve(handler(ctx)).catch(next);
-      },
-    );
+  constructor(opts: { jsonLimit?: string } = {}) {
+    this.native = express();
+    this.native.disable("x-powered-by");
+    this.native.use(express.json({ limit: opts.jsonLimit ?? "1mb" }));
+    this.native.use(express.urlencoded({ extended: true }));
   }
 
-  async listen(port: number, callback?: () => void): Promise<void> {
-    return new Promise((resolve) => {
-      this.server = this.app.listen(port, () => {
-        callback?.();
-        resolve();
-      });
+  registerRoute(route: RouteDefinition): void {
+    const method = route.method.toLowerCase() as Lowercase<
+      RouteDefinition["method"]
+    >;
+
+    this.native[method](route.path, async (req, res, next) => {
+      const ctx = buildContext(req, res);
+
+      try {
+        await Promise.resolve(route.handler(ctx));
+      } catch (err) {
+        next(err as Error);
+      }
+    });
+  }
+
+  async listen(port: number, host: string = "0.0.0.0"): Promise<void> {
+    await new Promise<void>((resolve) => {
+      this.server = this.native.listen(port, host, () => resolve());
     });
   }
 
   async close(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      if (!this.server) {
-        resolve();
-        return;
-      }
-      this.server.close((err) => {
-        this.server = null;
-        if (err) reject(err);
-        else resolve();
-      });
+    if (!this.server) return;
+    await new Promise<void>((resolve, reject) => {
+      this.server!.close((err) => (err ? reject(err) : resolve()));
     });
   }
+}
 
-  getInstance(): Application {
-    return this.app;
-  }
+function buildContext(req: Request, res: Response): ExpressContext {
+  let bodyPromise: Promise<unknown> | undefined;
 
-  private createContext(req: Request, res: Response): HttpContext {
-    let statusCode = 200;
-    let sent = false;
+  const httpReq: HttpRequest = {
+    method: req.method,
+    path: req.path,
+    url: req.originalUrl,
+    headers: req.headers,
+    query: req.query as Record<string, string | string[] | undefined>,
+    params: req.params as Readonly<Record<string, string>>,
+    body: <T>() => (bodyPromise ??= Promise.resolve(req.body)) as Promise<T>,
+  };
 
-    const ctx: HttpContext = {
-      req,
-      res,
-      method: req.method.toLowerCase(),
-      path: req.path,
-      params: (req.params ?? {}) as Record<string, string>,
-      query: req.query as Record<string, string | string[] | undefined>,
-      headers: req.headers as Record<string, string | string[] | undefined>,
-      body: req.body,
-
-      status(code: number) {
-        statusCode = code;
-        return ctx;
+  const httpRes: HttpResponse = (() => {
+    const self: HttpResponse = {
+      get sent() {
+        return res.headersSent;
       },
-
-      json(data: unknown) {
-        if (sent || res.headersSent) return;
-        sent = true;
-        res.status(statusCode).json(data);
+      status: (code) => {
+        res.status(code);
+        return self;
       },
-
-      send(data: string | Buffer) {
-        if (sent || res.headersSent) return;
-        sent = true;
-        res.status(statusCode).send(data);
+      header: (n, v) => {
+        res.setHeader(n, v);
+        return self;
       },
-
-      setHeader(name: string, value: string) {
-        res.setHeader(name, value);
-        return ctx;
+      send: async (b) => {
+        res.send(b);
       },
-
-      redirect(url: string, code?: number) {
-        if (sent || res.headersSent) return;
-        sent = true;
-        res.redirect(code ?? 302, url);
+      json: async (d) => {
+        res.json(d);
       },
-
-      get responseSent() {
-        return sent || res.headersSent;
+      stream: async (s) => {
+        await new Promise<void>((resolve, reject) => {
+          const cleanup = () => {
+            s.off("error", onError);
+            res.off("finish", onDone);
+            res.off("close", onDone);
+          };
+          const onDone = () => {
+            cleanup();
+            resolve();
+          };
+          const onError = (err: Error) => {
+            cleanup();
+            reject(err);
+          };
+          s.on("error", onError);
+          res.on("finish", onDone);
+          res.on("close", onDone);
+          s.pipe(res);
+        });
+      },
+      redirect: async (u, code = 302) => {
+        res.redirect(code, u);
+      },
+      end: async () => {
+        res.end();
       },
     };
+    return self;
+  })();
 
-    return ctx;
-  }
+  return { req: httpReq, res: httpRes, state: new Map(), raw: { req, res } };
 }

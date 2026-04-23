@@ -1,10 +1,11 @@
 import { MongoClient, Db } from "mongodb";
 import {
+  defineModule,
   injectAsync,
   InjectionToken,
   type FactoryProvider,
 } from "@decorify/core";
-import { CONFIG } from "./config.provider.js";
+import { CONFIG } from "./config.module.ts";
 
 export const MONGO_DB = new InjectionToken<Db>("MONGO_DB");
 
@@ -18,3 +19,8 @@ export const DatabaseProvider: FactoryProvider<Db> = {
     return client.db();
   },
 };
+
+export const databaseModule = defineModule({
+  name: "database",
+  providers: [DatabaseProvider],
+});

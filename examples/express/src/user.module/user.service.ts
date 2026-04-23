@@ -1,7 +1,7 @@
 import { ObjectId, Collection } from "mongodb";
 import { inject, Injectable, NotFoundException } from "@decorify/core";
-import { MONGO_DB } from "../database.provider.js";
-import type { CreateUserDto, UpdateUserDto, UserDto } from "./user.dto.js";
+import { MONGO_DB } from "../database.module.ts";
+import type { CreateUserDto, UpdateUserDto, UserDto } from "./user.dto.ts";
 
 @Injectable()
 export class UserService {

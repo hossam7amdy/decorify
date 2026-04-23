@@ -4,17 +4,10 @@ import {
   Post,
   Patch,
   Delete,
-  ValidateBody,
-  ValidateParams,
   type HttpContext,
   inject,
 } from "@decorify/core";
-import { UserService } from "./user.service.js";
-import {
-  CreateUserSchema,
-  UpdateUserSchema,
-  UserParamsSchema,
-} from "./user.schema.js";
+import { UserService } from "./user.service.ts";
 
 @Controller("/users")
 export class UserController {
@@ -26,29 +19,29 @@ export class UserController {
   }
 
   @Get("/:id")
-  @ValidateParams(UserParamsSchema)
   async getUserById(ctx: HttpContext) {
-    return this.userService.findById(ctx.params.id!);
+    const params = ctx.req.params;
+    return this.userService.findById(params.id!);
   }
 
   @Post("/")
-  @ValidateBody(CreateUserSchema)
   async createUser(ctx: HttpContext) {
-    const newUser = await this.userService.create(ctx.body as any);
-    ctx.status(201).json(newUser);
+    const body = await ctx.req.body<any>();
+    const newUser = await this.userService.create(body);
+    ctx.res.status(201).json(newUser);
   }
 
   @Patch("/:id")
-  @ValidateParams(UserParamsSchema)
-  @ValidateBody(UpdateUserSchema)
   async updateUser(ctx: HttpContext) {
-    return this.userService.update(ctx.params.id!, ctx.body as any);
+    const params = ctx.req.params;
+    const body = await ctx.req.body<any>();
+    return this.userService.update(params.id!, body);
   }
 
   @Delete("/:id")
-  @ValidateParams(UserParamsSchema)
   async deleteUser(ctx: HttpContext) {
-    await this.userService.delete(ctx.params.id!);
-    ctx.status(204).send("ok");
+    const params = ctx.req.params;
+    await this.userService.delete(params.id!);
+    ctx.res.status(204).end();
   }
 }

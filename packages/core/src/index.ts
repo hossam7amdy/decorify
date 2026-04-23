@@ -1,39 +1,38 @@
-import "./symbol-metadata-polyfill.js";
+import "./symbol-metadata-polyfill.ts";
 
 // Core
-export { Application } from "./application.js";
-export type { HttpContext, InjectableContext } from "./context.js";
-export type { HttpAdapter } from "./adapters/http-adapter.js";
+export { Application, type ApplicationOptions } from "./application.ts";
+export type { Next, Middleware } from "./middleware.ts";
+export { type ModuleDefinition, defineModule } from "./module.ts";
 
-// HTTP types
-export type {
-  RouteHandler,
-  MiddlewareHandler,
-  ErrorHandler,
-  Guard,
-  ExceptionFilter,
-} from "./types.js";
-
-// HTTP Decorators
-export { HttpStatus } from "./http/index.js";
+// Decorators
 export {
-  Controller,
+  CONTROLLER_MIDDLEWARE,
+  ROUTE_MIDDLEWARE,
+  UseMiddleware,
+  Route,
   Get,
   Post,
   Put,
-  Delete,
   Patch,
-  Head,
-  Options,
-  All,
-  UseMiddleware,
-  UseGuard,
-  UseFilter,
-  ValidateBody,
-  ValidateParams,
-  ValidateQuery,
-} from "./http/index.js";
-export type { RouteMetadata, ControllerMetadata } from "./http/index.js";
+  Delete,
+  Controller,
+  ROUTE_META,
+  CONTROLLER_META,
+} from "./decorators/index.ts";
+export type { RouteMeta, ControllerMeta } from "./decorators/index.ts";
+
+// HTTP
+export { HttpStatus } from "./http/index.ts";
+export type {
+  Handler,
+  HttpMethod,
+  RouteDefinition,
+  HttpAdapter,
+  HttpContext,
+  HttpRequest,
+  HttpResponse,
+} from "./http/index.ts";
 
 // Errors
 export {
@@ -47,33 +46,8 @@ export {
   UnprocessableEntityException,
   TooManyRequestsException,
   InternalServerErrorException,
-  DefaultExceptionFilter,
-} from "./errors/index.js";
-
-// Lifecycle
-export type { OnInit, OnDestroy } from "./lifecycle/index.js";
-export {
-  hasOnInit,
-  hasOnDestroy,
-  LifecycleManager,
-} from "./lifecycle/index.js";
+  defaultErrorHandler,
+} from "./errors/index.ts";
 
 // Re-export DI utilities
-export {
-  Container,
-  Injectable,
-  Inject,
-  injectAsync,
-  inject,
-  InjectionToken,
-  Lifetime,
-} from "@decorify/di";
-export type {
-  Token,
-  Provider,
-  Constructor,
-  ClassProvider,
-  ValueProvider,
-  ExistingProvider,
-  FactoryProvider,
-} from "@decorify/di";
+export * from "@decorify/di";

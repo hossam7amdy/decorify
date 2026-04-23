@@ -9,5 +9,5 @@ export {
   UnprocessableEntityException,
   TooManyRequestsException,
   InternalServerErrorException,
-} from "./http-exception.js";
-export { DefaultExceptionFilter } from "./exception-filter.js";
+} from "./http-exception.ts";
+export { defaultErrorHandler } from "./error-handler.ts";
