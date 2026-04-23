@@ -202,8 +202,7 @@ describe("Application", () => {
       });
 
       const paths = app.getRoutes().map((r) => r.path);
-      expect(paths).toContain("/items/");
-      expect(paths).toContain("/items/");
+      expect(paths).toContain("/items");
       expect(paths).toContain("/items/:id");
     });
 
