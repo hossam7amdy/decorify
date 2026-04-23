@@ -4,17 +4,10 @@ import {
   Post,
   Patch,
   Delete,
-  ValidateBody,
-  ValidateParams,
   type HttpContext,
   inject,
 } from "@decorify/core";
-import { TodoService } from "./todo.service.js";
-import {
-  CreateTodoSchema,
-  UpdateTodoSchema,
-  TodoParamsSchema,
-} from "./todo.schema.js";
+import { TodoService } from "./todo.service.ts";
 
 @Controller("/todos")
 export class TodoController {
@@ -26,29 +19,27 @@ export class TodoController {
   }
 
   @Get("/:id")
-  @ValidateParams(TodoParamsSchema)
   async getTodoById(ctx: HttpContext) {
-    return this.todoService.findOne(ctx.params.id!);
+    return this.todoService.findOne(ctx.req.params.id!);
   }
 
   @Post("/")
-  @ValidateBody(CreateTodoSchema)
   async createTodo(ctx: HttpContext) {
-    const newTodo = await this.todoService.create(ctx.body as any);
-    ctx.status(201).json(newTodo);
+    const body = await ctx.req.body<any>();
+    const newTodo = await this.todoService.create(body);
+    ctx.res.status(201).json(newTodo);
   }
 
   @Patch("/:id")
-  @ValidateParams(TodoParamsSchema)
-  @ValidateBody(UpdateTodoSchema)
   async updateTodo(ctx: HttpContext) {
-    return this.todoService.update(ctx.params.id!, ctx.body as any);
+    const params = ctx.req.params;
+    const body = await ctx.req.body<any>();
+    return this.todoService.update(params.id!, body);
   }
 
   @Delete("/:id")
-  @ValidateParams(TodoParamsSchema)
   async deleteTodo(ctx: HttpContext) {
-    await this.todoService.delete(ctx.params.id!);
-    ctx.status(204).send("ok");
+    await this.todoService.delete(ctx.req.params.id!);
+    ctx.res.status(204).end();
   }
 }

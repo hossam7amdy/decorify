@@ -13,60 +13,85 @@ pnpm add @decorify/express-adapter express
 ## Usage
 
 ```ts
-import { Application } from "@decorify/core";
+import { Application, defineModule } from "@decorify/core";
 import { ExpressAdapter } from "@decorify/express-adapter";
 import { UserController } from "./user.controller.js";
 
-const app = new Application(new ExpressAdapter());
+const app = await Application.create({
+  adapter: new ExpressAdapter(),
+  modules: [
+    defineModule({
+      name: "user",
+      controllers: [UserController],
+    }),
+  ],
+});
 
-app.register([UserController]);
-
-await app.listen(3000, () => console.log("Listening on port 3000"));
+await app.listen(3000);
 ```
 
-### Bring your own Express instance
-
-If you need to configure Express before passing it to the adapter (e.g. to add third-party middleware or configure trust proxy settings), pass an existing app instance:
+### Options
 
 ```ts
-import express from "express";
-import { ExpressAdapter } from "@decorify/express-adapter";
-
-const expressApp = express();
-expressApp.set("trust proxy", 1);
-
-const adapter = new ExpressAdapter(expressApp);
+const adapter = new ExpressAdapter({ jsonLimit: "5mb" }); // default: "1mb"
 ```
 
 ### Accessing the Express instance
 
-Use `app.adapter.getInstance()` to retrieve the underlying Express application for framework-specific configuration:
+Use `adapter.native` to access the underlying Express application for framework-specific configuration (third-party middleware, trust proxy, etc.):
 
 ```ts
 const adapter = new ExpressAdapter();
-const app = new Application(adapter);
+adapter.native.set("trust proxy", 1);
+adapter.native.use(compression());
 
-// Access the Express app directly
-const expressApp = adapter.getInstance();
-expressApp.set("trust proxy", 1);
+const app = await Application.create({ adapter, modules: [...] });
+```
+
+Alternatively, access it after creation via `app.getAdapter()`:
+
+```ts
+const app = await Application.create({ adapter: new ExpressAdapter(), modules: [...] });
+import type { ExpressAdapter } from "@decorify/express-adapter";
+const expressApp = app.getAdapter<ExpressAdapter>().native;
 ```
 
 ## What it does
 
-- Automatically mounts `express.json()` middleware so request bodies are parsed out of the box.
+- Automatically mounts `express.json()` and `express.urlencoded()` middleware so request bodies are parsed out of the box.
 - Translates Express `req`/`res` objects into `HttpContext` for every route.
-- Exposes `raw.req` and `raw.res` on `HttpContext` as an escape hatch to the Express-native objects.
+- Exposes `ctx.raw.req` and `ctx.raw.res` as an escape hatch to the native Express objects.
 - Implements graceful shutdown via `server.close()`.
+- Disables the `X-Powered-By` header.
 
 ## API
 
-### `new ExpressAdapter(app?)`
+### `new ExpressAdapter(opts?)`
 
-Creates an adapter. If `app` is omitted a new Express application is created internally.
+Creates an adapter with a fresh Express application.
 
-### `adapter.getInstance(): express.Application`
+| Option      | Type     | Default | Description                                |
+| ----------- | -------- | ------- | ------------------------------------------ |
+| `jsonLimit` | `string` | `"1mb"` | Max request body size for `express.json()` |
 
-Returns the underlying Express application.
+### `adapter.native`
+
+The underlying `express.Application` instance.
+
+### `ExpressContext`
+
+A typed alias for `HttpContext<Request, Response>` from Express. Import it for use in middleware or helpers that need access to Express-native types via `ctx.raw`:
+
+```ts
+import type { ExpressContext } from "@decorify/express-adapter";
+import type { Middleware } from "@decorify/core";
+
+const expressMiddleware: Middleware = (ctx, next) => {
+  const { req, res } = (ctx as ExpressContext).raw;
+  // req and res are typed as Express Request / Response
+  return next();
+};
+```
 
 ## License
 

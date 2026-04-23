@@ -45,8 +45,16 @@
   "engines": {
     "node": ">=22.0.0"
   },
-  "dependencies": {
+  "devDependencies": {
     "@decorify/di": "workspace:*"
+  },
+  "peerDependencies": {
+    "@decorify/di": "workspace:^"
+  },
+  "peerDependenciesMeta": {
+    "@decorify/di": {
+      "optional": false
+    }
   },
   "homepage": "https://github.com/hossam7amdy/decorify#readme",
   "repository": {

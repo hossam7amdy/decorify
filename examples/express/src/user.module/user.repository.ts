@@ -1,5 +1,5 @@
 import { Injectable } from "@decorify/core";
-import type { User } from "./user.interface.js";
+import type { User } from "./user.interface.ts";
 
 @Injectable()
 export class UserRepository {

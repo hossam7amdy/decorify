@@ -1,18 +1,20 @@
+import type { HttpStatus } from "../http/status-code.ts";
+
 export class HttpException extends Error {
-  readonly statusCode: number;
+  readonly status: HttpStatus;
   readonly details?: unknown;
 
-  constructor(statusCode: number, message: string, details?: unknown) {
+  constructor(status: HttpStatus, message: string, details?: unknown) {
     super(message);
     this.name = this.constructor.name;
-    this.statusCode = statusCode;
+    this.status = status;
     this.details = details;
   }
 
   toJSON() {
     return {
       name: this.constructor.name,
-      statusCode: this.statusCode,
+      status: this.status,
       message: this.message,
       ...(this.details ? { details: this.details } : {}),
     };

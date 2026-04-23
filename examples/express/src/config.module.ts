@@ -1,6 +1,10 @@
 import { z } from "zod/v4";
-import dotenv from "dotenv";
-import { InjectionToken, type FactoryProvider } from "@decorify/core";
+import { configDotenv } from "dotenv";
+import {
+  defineModule,
+  InjectionToken,
+  type FactoryProvider,
+} from "@decorify/core";
 
 const configSchema = z.object({
   PORT: z.coerce.number().int().default(3000),
@@ -14,7 +18,12 @@ export const CONFIG = new InjectionToken<Config>("CONFIG");
 export const ConfigProvider: FactoryProvider<Config> = {
   provide: CONFIG,
   useFactory: () => {
-    dotenv.config();
+    configDotenv();
     return configSchema.parseAsync(process.env);
   },
 };
+
+export const configModule = defineModule({
+  name: "configuration",
+  providers: [ConfigProvider],
+});

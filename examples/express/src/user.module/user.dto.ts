@@ -3,7 +3,7 @@ import type {
   CreateUserSchema,
   UpdateUserSchema,
   UserParamsSchema,
-} from "./user.schema.js";
+} from "./user.schema.ts";
 
 export interface UserDto {
   id: string;

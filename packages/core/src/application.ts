@@ -1,49 +1,75 @@
-import type { HttpAdapter } from "./adapters/http-adapter.js";
+import { Container, type Constructor, type Token } from "@decorify/di";
+import type { Handler, HttpAdapter, HttpMethod } from "./http/adapter.ts";
+import type { ModuleDefinition } from "./module.ts";
+import { compose, type Middleware } from "./middleware.ts";
 import {
-  Container,
-  type Constructor,
-  type Provider,
-  type Token,
-} from "@decorify/di";
-import type {
-  MiddlewareHandler,
-  GuardType,
-  ExceptionFilterType,
-} from "./types.js";
-import { LifecycleManager } from "./lifecycle/manager.js";
-import { registerControllers } from "./router.js";
+  ROUTE_MIDDLEWARE,
+  CONTROLLER_MIDDLEWARE,
+  type RouteMiddlewareMap,
+} from "./decorators/middleware.ts";
+import { ROUTE_META, type RouteMeta } from "./decorators/route.ts";
+import {
+  defaultErrorHandler,
+  type ErrorHandler,
+} from "./errors/error-handler.ts";
+import {
+  CONTROLLER_META,
+  type ControllerMeta,
+} from "./decorators/controller.ts";
+import { joinPath } from "./utils.ts";
 
-interface ApplicationOptions {
-  controllers: ReadonlyArray<Constructor>;
-  globalProviders?: ReadonlyArray<Provider>;
+interface RegisteredRoute {
+  method: HttpMethod;
+  path: string;
+  controller: string;
 }
 
-export class Application<Adapter> {
-  readonly adapter: HttpAdapter<Adapter>;
-  private initialized = false;
-  private container = new Container();
-  private lifecycle = new LifecycleManager();
-  private controllers: Constructor[] = [];
-  private globalMiddleware: MiddlewareHandler[] = [];
-  private globalGuards: GuardType[] = [];
-  private globalFilters: ExceptionFilterType[] = [];
+export interface ApplicationOptions {
+  readonly adapter: HttpAdapter;
+  readonly container?: Container;
+  readonly modules: readonly ModuleDefinition[];
+  readonly globalMiddleware?: readonly Middleware[];
+  readonly errorHandler?: ErrorHandler;
+}
 
-  private constructor(adapter: HttpAdapter<Adapter>) {
+export class Application {
+  private readonly adapter: HttpAdapter;
+  private readonly container: Container;
+  private readonly routes: RegisteredRoute[];
+
+  private constructor(
+    adapter: HttpAdapter,
+    container: Container = new Container(),
+  ) {
+    this.container = container;
     this.adapter = adapter;
+    this.routes = [];
   }
 
-  static async create<Adapter>(
-    adapter: HttpAdapter<Adapter>,
-    options: ApplicationOptions,
-  ): Promise<Application<Adapter>> {
-    const app = new Application(adapter);
+  static async create(opts: ApplicationOptions): Promise<Application> {
+    const app = new Application(opts.adapter, opts.container);
 
-    app.controllers = [...options.controllers];
+    const globalMiddlewares = opts.globalMiddleware ?? [];
 
-    if (options.globalProviders) {
-      options.globalProviders.forEach((provider) =>
-        app.container.register(provider),
-      );
+    // Phase 1: register all providers across all modules
+    for (const mod of opts.modules) {
+      for (const provider of mod.providers ?? []) {
+        app.container.register(provider);
+      }
+      for (const controller of mod.controllers ?? []) {
+        app.container.register(controller);
+      }
+    }
+
+    // Phase 2: register controllers (providers must be available first)
+    for (const mod of opts.modules) {
+      const moduleMiddlewares = [
+        ...globalMiddlewares,
+        ...(mod.middlewares ?? []),
+      ];
+      for (const Ctrl of mod.controllers ?? []) {
+        app.registerController(Ctrl, moduleMiddlewares, opts.errorHandler);
+      }
     }
 
     await app.container.initialize();
@@ -55,55 +81,100 @@ export class Application<Adapter> {
     return this.container.resolve(token);
   }
 
-  useMiddleware(...handlers: MiddlewareHandler[]): this {
-    this.globalMiddleware.push(...handlers);
-    return this;
-  }
-
-  useGlobalGuard(...guards: GuardType[]): this {
-    this.globalGuards.push(...guards);
-    return this;
-  }
-
-  useGlobalFilter(...filters: ExceptionFilterType[]): this {
-    this.globalFilters.push(...filters);
-    return this;
-  }
-
-  async init(): Promise<void> {
-    if (this.initialized) {
-      throw new Error("Application is already initialized");
-    }
-    this.initialized = true;
-
-    registerControllers(
-      this.container,
-      this.adapter,
-      this.controllers,
-      this.lifecycle,
-      {
-        globalMiddleware: this.globalMiddleware,
-        globalGuards: this.globalGuards,
-        globalFilters: this.globalFilters,
-      },
-    );
-
-    for (const instance of this.container.getInstances()) {
-      this.lifecycle.track(instance);
+  private registerController(
+    ControllerClass: Constructor,
+    moduleMiddlewares: readonly Middleware[],
+    errorHandler = defaultErrorHandler,
+  ): void {
+    const metadata = (ControllerClass as any)[Symbol.metadata];
+    if (!metadata) {
+      console.warn(
+        `Class ${ControllerClass.name} has no metadata. Did you forget @Controller?`,
+      );
+      return;
     }
 
-    await this.lifecycle.callOnInit();
+    const ctrlMiddlewares: readonly Middleware[] =
+      metadata[CONTROLLER_MIDDLEWARE] ?? [];
+    const routes: readonly RouteMeta[] = metadata[ROUTE_META] ?? [];
+    const routeMiddlewareMap: RouteMiddlewareMap =
+      metadata[ROUTE_MIDDLEWARE] ?? new Map();
+    const controllerMeta: ControllerMeta = metadata[CONTROLLER_META] ?? {};
+
+    const prefix = controllerMeta.prefix ?? "";
+    for (const route of routes) {
+      const fullPath = joinPath(prefix, route.path);
+      const routeMiddlewares = routeMiddlewareMap.get(route.propertyKey) ?? [];
+      const chain = [
+        ...moduleMiddlewares,
+        ...ctrlMiddlewares,
+        ...routeMiddlewares,
+      ];
+      const runChain = compose(chain);
+
+      const handler: Handler = async (ctx) => {
+        const instance =
+          this.container.resolve<Record<string | symbol, Handler>>(
+            ControllerClass,
+          );
+        const method = instance[route.propertyKey]?.bind(instance);
+        if (typeof method !== "function") {
+          throw new Error(
+            `Method ${String(route.propertyKey)} not found on ${ControllerClass.name}`,
+          );
+        }
+        return method(ctx);
+      };
+
+      const routeHandler: Handler = async (ctx) => {
+        try {
+          const result = await runChain(ctx, handler);
+          if (ctx.res.sent) {
+            if (process.env.NODE_ENV !== "production" && result !== undefined) {
+              console.warn(
+                `[${Application.name}] handler for ${ctx.req.method} ${ctx.req.path} sent a response AND returned a value; return value ignored`,
+              );
+            }
+            return;
+          }
+          if (result !== undefined) {
+            await ctx.res.json(result);
+            return;
+          }
+          await ctx.res.status(204).end();
+        } catch (err) {
+          await errorHandler(err, ctx);
+        }
+      };
+
+      this.routes.push({
+        method: route.method,
+        path: fullPath,
+        controller: ControllerClass.name,
+      });
+
+      this.adapter.registerRoute({
+        method: route.method,
+        path: fullPath,
+        handler: routeHandler,
+      });
+    }
   }
 
-  async listen(port: number, callback?: () => void): Promise<void> {
-    await this.init();
-
-    await this.adapter.listen(port, callback);
+  async listen(port: number, host?: string): Promise<void> {
+    await this.adapter.listen(port, host);
   }
 
   async close(): Promise<void> {
-    await this.lifecycle.callOnDestroy();
-    await this.container.dispose();
     await this.adapter.close();
+    await this.container.dispose();
+  }
+
+  getAdapter(): Readonly<HttpAdapter> {
+    return this.adapter;
+  }
+
+  getRoutes(): readonly RegisteredRoute[] {
+    return this.routes;
   }
 }

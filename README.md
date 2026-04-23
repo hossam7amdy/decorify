@@ -7,7 +7,7 @@ A framework-agnostic micro-framework for building production-ready HTTP backends
 | Package                                                   | Description                                                            |
 | --------------------------------------------------------- | ---------------------------------------------------------------------- |
 | [`@decorify/di`](./packages/di)                           | Standalone IoC container with `@Injectable`, `inject()`, and `@Inject` |
-| [`@decorify/core`](./packages/core)                       | HTTP framework — routing, middleware, guards, filters, lifecycle hooks |
+| [`@decorify/core`](./packages/core)                       | HTTP framework — routing, middleware, modules, and error handling      |
 | [`@decorify/express-adapter`](./packages/express-adapter) | Express 5 adapter for `@decorify/core`                                 |
 
 ## Features
@@ -15,10 +15,10 @@ A framework-agnostic micro-framework for building production-ready HTTP backends
 - **Stage 3 ES Decorators** — uses the TC39 standard, not legacy TypeScript experimental decorators
 - **Framework-agnostic** — pluggable `HttpAdapter` interface; ships with an Express 5 adapter
 - **Dependency Injection** — IoC container with unified provider API, `InjectionToken`, lifetimes (singleton/transient/scoped), circular & captive dependency detection, and `AsyncLocalStorage`-based `inject()`
+- **Module System** — `defineModule()` for organizing providers, controllers, and per-module middleware
 - **Routing** — `@Controller`, `@Get`, `@Post`, `@Put`, `@Patch`, `@Delete`
-- **Middleware & Guards** — `@UseMiddleware`, `@UseGuard` at class or method level
-- **Exception Filters** — `@UseFilter` and built-in `HttpException` subclasses
-- **Lifecycle Hooks** — `OnInit` / `OnDestroy` interfaces called on startup and shutdown
+- **Middleware** — `@UseMiddleware` at class or method level; Koa-style onion model
+- **Error Handling** — built-in `HttpException` subclasses and `defaultErrorHandler`
 
 ## Requirements
 
@@ -38,47 +38,90 @@ pnpm add @decorify/express-adapter express
 ## Quick Start
 
 ```ts
-// main.ts
-import { Application } from "@decorify/core";
+// app.ts
+import { Application, defineModule } from "@decorify/core";
 import { ExpressAdapter } from "@decorify/express-adapter";
 import { UserController } from "./user.controller.js";
 
-const app = new Application(new ExpressAdapter());
+export async function bootstrap() {
+  const app = await Application.create({
+    adapter: new ExpressAdapter(),
+    modules: [
+      defineModule({
+        name: "user",
+        controllers: [UserController],
+      }),
+    ],
+  });
+  return app;
+}
 
-app.register([UserController]);
-
+// main.ts
+const app = await bootstrap();
 await app.listen(3000, () => {
   console.log("Server listening on port 3000");
+});
+```
+
+## Modules
+
+Modules are the primary way to organize features. Each module declares its own providers, controllers, and optional per-module middleware.
+
+```ts
+import { defineModule } from "@decorify/core";
+import { UserController } from "./user.controller.js";
+import { UserService } from "./user.service.js";
+import { UserRepository } from "./user.repository.js";
+
+export const userModule = defineModule({
+  name: "user",
+  providers: [UserRepository, UserService],
+  controllers: [UserController],
+  middlewares: [logger], // applies to all routes in this module
+});
+```
+
+Pass all modules to `Application.create()`:
+
+```ts
+const app = await Application.create({
+  adapter: new ExpressAdapter(),
+  modules: [databaseModule, configModule, userModule],
+  globalMiddleware: [requestId], // applies to every route
+  errorHandler: myErrorHandler, // defaults to defaultErrorHandler
 });
 ```
 
 ## Routing
 
 ```ts
-import { Controller, Get, Post, Injectable } from "@decorify/core";
+import { Controller, Get, Post, inject } from "@decorify/core";
 import type { HttpContext } from "@decorify/core";
 
-@Injectable()
 @Controller("/users")
 export class UserController {
+  private service = inject(UserService);
+
   @Get("/")
-  getAll(_ctx: HttpContext) {
-    return [{ id: 1, name: "Alice" }];
+  getAll() {
+    return this.service.findAll();
   }
 
   @Get("/:id")
   getOne(ctx: HttpContext) {
-    return { id: ctx.params.id };
+    return this.service.findById(ctx.req.params.id!);
   }
 
   @Post("/")
-  create(ctx: HttpContext) {
-    ctx.status(201).json(ctx.body);
+  async create(ctx: HttpContext) {
+    const body = await ctx.req.body();
+    const user = await this.service.create(body);
+    ctx.res.status(201).json(user);
   }
 }
 ```
 
-Returning a value from a handler automatically sends it as a JSON response.
+Returning a value from a handler automatically sends it as a JSON response. Returning nothing sends `204 No Content`.
 
 ## Dependency Injection
 
@@ -102,7 +145,7 @@ export class UserService {
   private repo = inject(UserRepository);
 }
 
-@Injectable()
+@Controller("/users")
 export class UserController {
   // decorator-based field injection
   @Inject(UserService) private service!: UserService;
@@ -124,49 +167,45 @@ container.register({ provide: LOGGER, useFactory: () => createLogger() });
 container.register({ provide: AliasToken, useExisting: CacheService });
 ```
 
-## Middleware & Guards
+## Middleware
+
+Middleware follows a Koa-style onion model. Use `@UseMiddleware` at the class or method level:
 
 ```ts
-import { Application, UseMiddleware, UseGuard } from "@decorify/core";
-import type { HttpContext, MiddlewareHandler, Guard } from "@decorify/core";
+import type { Middleware } from "@decorify/core";
 
-const logger: MiddlewareHandler = async (ctx, next) => {
-  console.log(`${ctx.method.toUpperCase()} ${ctx.path}`);
+const logger: Middleware = async (ctx, next) => {
+  console.log(`${ctx.req.method.toUpperCase()} ${ctx.req.path}`);
   await next();
 };
 
-const authGuard: Guard = {
-  async canActivate(ctx) {
-    return ctx.headers.authorization === "Bearer secret";
-  },
-};
-
-// Global
-app.useMiddleware(logger);
-// Pass instances or DI Constructors!
-app.useGlobalGuard(AuthGuard);
+// Global — via Application.create()
+const app = await Application.create({
+  adapter: new ExpressAdapter(),
+  modules: [...],
+  globalMiddleware: [logger],
+});
 
 // Controller-level
 @UseMiddleware(logger)
-@UseGuard(AuthGuard)
-@Controller("/admin")
-class AdminController {
+@Controller("/api")
+class ApiController {
   /* ... */
 }
 
 // Method-level
-class PostController {
-  @UseGuard(authGuard) // Can also pass instances directly
-  @Delete("/:id")
-  delete(ctx: HttpContext) {
+class OrderController {
+  @UseMiddleware(logger)
+  @Post("/")
+  create(ctx: HttpContext) {
     /* ... */
   }
 }
 ```
 
-Guards run **after middleware** and before the route handler. This allows middleware to parse payloads or set state (e.g. `ctx.user`) which guards can subsequently authorize.
+Execution order: **global → module → class → method**.
 
-## Exception Handling
+## Error Handling
 
 ```ts
 import {
@@ -175,112 +214,91 @@ import {
   UnauthorizedException,
   ForbiddenException,
   InternalServerErrorException,
-  DefaultExceptionFilter,
-  UseFilter,
+  defaultErrorHandler,
 } from "@decorify/core";
 
-// Throw anywhere in a handler or guard
+// Throw anywhere in a handler or middleware
 throw new NotFoundException("User not found");
 
-// Apply globally (by instance or constructor)
-app.useGlobalFilter(DefaultExceptionFilter);
-
-// Or per controller / method
-@UseFilter(DefaultExceptionFilter)
-@Controller("/users")
-class UserController {
-  /* ... */
-}
+// defaultErrorHandler is used automatically; override per application
+const app = await Application.create({
+  adapter: new ExpressAdapter(),
+  modules: [...],
+  errorHandler: async (err, ctx) => {
+    ctx.res.status(500).json({ message: "Something went wrong" });
+  },
+});
 ```
 
-### Custom Exception Filter
+### Custom Error Handler
 
 ```ts
-import type { ExceptionFilter, HttpContext } from "@decorify/core";
-import { Injectable, inject } from "@decorify/core";
+import type { ErrorHandler } from "@decorify/core";
 
-@Injectable()
-class MyFilter implements ExceptionFilter {
-  private logger = inject(LoggerService);
-
-  catch(error: Error, ctx: HttpContext): void {
-    this.logger.error(error);
-    ctx.status(422).json({ message: error.message });
+const myErrorHandler: ErrorHandler = async (err, ctx) => {
+  if (ctx.res.sent) return;
+  if (err instanceof HttpException) {
+    return ctx.res.status(err.status).json(err.toJSON());
   }
-}
+  ctx.res.status(500).json({ message: "Internal Server Error" });
+};
 ```
-
-_Note: `@UseGuard` and `@UseFilter` fully support `@decorify/di`. Passing a class reference (constructor) allows the framework to dynamically resolve your guard or filter with its injected dependencies!_
-
-## Lifecycle Hooks
-
-```ts
-import { Injectable } from "@decorify/core";
-import type { OnInit, OnDestroy } from "@decorify/core";
-
-@Injectable()
-export class DatabaseService implements OnInit, OnDestroy {
-  async onInit() {
-    await db.connect();
-  }
-
-  async onDestroy() {
-    await db.disconnect();
-  }
-}
-```
-
-`onInit()` is called after all controllers are registered, before the server starts listening. `onDestroy()` is called when `app.close()` is invoked.
 
 ## HttpContext API
 
-Every route handler receives an `HttpContext` object:
+Every route handler and middleware receives an `HttpContext` object:
 
-| Property / Method        | Description                                           |
-| ------------------------ | ----------------------------------------------------- |
-| `method`                 | HTTP method (lowercase)                               |
-| `path`                   | Request path                                          |
-| `params`                 | URL path parameters (`{ id: "42" }`)                  |
-| `query`                  | Query string parameters                               |
-| `headers`                | Request headers                                       |
-| `body`                   | Parsed request body                                   |
-| `status(code)`           | Set response status code (chainable)                  |
-| `json(data)`             | Send a JSON response                                  |
-| `send(data)`             | Send a plain text / Buffer response                   |
-| `setHeader(name, value)` | Set a response header (chainable)                     |
-| `raw`                    | Escape hatch to the underlying `{ req, res }` objects |
+### `ctx.req` — HttpRequest
+
+| Property / Method | Description                                |
+| ----------------- | ------------------------------------------ |
+| `method`          | HTTP method (lowercase)                    |
+| `path`            | Request path                               |
+| `url`             | Full request URL                           |
+| `params`          | URL path parameters (`{ id: "42" }`)       |
+| `query`           | Query string parameters                    |
+| `headers`         | Request headers                            |
+| `body<T>()`       | Async method — returns parsed request body |
+
+### `ctx.res` — HttpResponse
+
+| Property / Method      | Description                              |
+| ---------------------- | ---------------------------------------- |
+| `sent`                 | Whether a response has already been sent |
+| `status(code)`         | Set response status code (chainable)     |
+| `header(name, value)`  | Set a response header (chainable)        |
+| `json(data)`           | Send a JSON response                     |
+| `send(data)`           | Send a plain text / Buffer response      |
+| `stream(body)`         | Stream a NodeJS ReadableStream response  |
+| `redirect(url, code?)` | Redirect to a URL                        |
+| `end()`                | End the response with no body            |
+
+### Other
+
+| Property | Description                                              |
+| -------- | -------------------------------------------------------- |
+| `state`  | Per-request `Map<string \| symbol, unknown>`             |
+| `raw`    | Escape hatch — `{ req: TReq, res: TRes }` native objects |
 
 ## Custom Adapters
 
 Implement the `HttpAdapter` interface to add support for any HTTP framework:
 
 ```ts
-import type {
-  HttpAdapter,
-  HttpContext,
-  RouteHandler,
-  MiddlewareHandler,
-  ErrorHandler,
-} from "@decorify/core";
+import type { HttpAdapter, RouteDefinition } from "@decorify/core";
 
 export class MyAdapter implements HttpAdapter {
-  registerRoute(method: string, path: string, handler: RouteHandler): void {
+  registerRoute(route: RouteDefinition): void {
+    // route.method, route.path, route.handler
+  }
+  async listen(port: number, host?: string): Promise<void> {
     /* ... */
   }
-  useMiddleware(handler: MiddlewareHandler): void {
+  async close(): Promise<void> {
     /* ... */
   }
-  useErrorHandler(handler: ErrorHandler): void {
-    /* ... */
-  }
-  listen(port: number, callback?: () => void): Promise<void> {
-    /* ... */
-  }
-  close(): Promise<void> {
-    /* ... */
-  }
-  getInstance(): unknown {
-    /* ... */
+  get native(): unknown {
+    /* return underlying framework instance */
   }
 }
 ```
