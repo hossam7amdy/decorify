@@ -28,7 +28,7 @@ export class ExpressAdapter implements HttpAdapter<Express> {
       try {
         await Promise.resolve(route.handler(ctx));
       } catch (err) {
-        next(err as Error);
+        next(err);
       }
     });
   }

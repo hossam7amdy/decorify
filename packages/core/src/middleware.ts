@@ -18,7 +18,7 @@ export function compose(
         return Promise.reject(new Error("next() called multiple times"));
       lastIndex = i;
       const fn =
-        i === middlewares.length ? () => handler(ctx) : middlewares.at(i)!;
+        i === middlewares.length ? () => handler(ctx) : middlewares[i]!;
       try {
         return Promise.resolve(fn(ctx, () => dispatch(i + 1)));
       } catch (err) {

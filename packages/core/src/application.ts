@@ -166,8 +166,8 @@ export class Application {
     await this.container.dispose();
   }
 
-  getAdapter<TAdapter extends HttpAdapter>(): Readonly<TAdapter> {
-    return this.adapter as TAdapter;
+  getAdapter(): Readonly<HttpAdapter> {
+    return this.adapter;
   }
 
   getRoutes(): readonly RegisteredRoute[] {

@@ -7,9 +7,6 @@ export { type ModuleDefinition, defineModule } from "./module.ts";
 
 // Decorators
 export {
-  CONTROLLER_MIDDLEWARE,
-  ROUTE_MIDDLEWARE,
-  UseMiddleware,
   Route,
   Get,
   Post,
@@ -17,8 +14,7 @@ export {
   Patch,
   Delete,
   Controller,
-  ROUTE_META,
-  CONTROLLER_META,
+  UseMiddleware,
 } from "./decorators/index.ts";
 export type { RouteMeta, ControllerMeta } from "./decorators/index.ts";
 
@@ -48,6 +44,3 @@ export {
   InternalServerErrorException,
   defaultErrorHandler,
 } from "./errors/index.ts";
-
-// Re-export DI utilities
-export * from "@decorify/di";
