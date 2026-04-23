@@ -1,4 +1,5 @@
 import express from "express";
+import { pipeline } from "node:stream/promises";
 import type { Server } from "node:http";
 import type { Express, Request, Response } from "express";
 import type { HttpAdapter, RouteDefinition } from "@decorify/core";
@@ -80,25 +81,17 @@ function buildContext(req: Request, res: Response): ExpressContext {
         res.json(d);
       },
       stream: async (s) => {
-        await new Promise<void>((resolve, reject) => {
-          const cleanup = () => {
-            s.off("error", onError);
-            res.off("finish", onDone);
-            res.off("close", onDone);
-          };
-          const onDone = () => {
-            cleanup();
-            resolve();
-          };
-          const onError = (err: Error) => {
-            cleanup();
-            reject(err);
-          };
-          s.on("error", onError);
-          res.on("finish", onDone);
-          res.on("close", onDone);
-          s.pipe(res);
-        });
+        try {
+          await pipeline(s, res);
+        } catch (err) {
+          if (
+            (err as NodeJS.ErrnoException)?.code ===
+            "ERR_STREAM_PREMATURE_CLOSE"
+          ) {
+            return;
+          }
+          throw err;
+        }
       },
       redirect: async (u, code = 302) => {
         res.redirect(code, u);
