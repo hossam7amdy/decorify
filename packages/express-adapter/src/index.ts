@@ -1,6 +1,6 @@
 import express from "express";
 import { pipeline } from "node:stream/promises";
-import type { AddressInfo, Server } from "node:net";
+import { Server, type AddressInfo } from "node:net";
 import type { Express, Request, Response } from "express";
 import type { HttpAdapter, RouteDefinition } from "@decorify/core";
 import type { HttpContext, HttpRequest, HttpResponse } from "@decorify/core";
@@ -8,8 +8,8 @@ import type { HttpContext, HttpRequest, HttpResponse } from "@decorify/core";
 export type ExpressContext = HttpContext<Request, Response>;
 
 export class ExpressAdapter implements HttpAdapter<Express> {
-  #server?: Server;
   readonly native: Express;
+  #serverPromise?: Promise<Server>;
 
   constructor(opts: { jsonLimit?: string } = {}) {
     this.native = express();
@@ -35,18 +35,29 @@ export class ExpressAdapter implements HttpAdapter<Express> {
   }
 
   async listen(port: number, host: string = "0.0.0.0"): Promise<number> {
-    return new Promise<number>((resolve, reject) => {
-      this.#server = this.native.listen(port, host, () => {
-        resolve((this.#server!.address() as AddressInfo).port);
-      });
-      this.#server.once("error", reject);
-    });
+    if (this.#serverPromise) {
+      const server = await this.#serverPromise;
+      return (server.address() as AddressInfo).port;
+    }
+
+    this.#serverPromise = (() =>
+      new Promise<Server>((resolve, reject) => {
+        const server = this.native.listen(port, host, (error) => {
+          if (error) reject(error);
+          else resolve(server);
+        });
+      }))();
+
+    const server = await this.#serverPromise;
+    return (server.address() as AddressInfo).port;
   }
 
   async close(): Promise<void> {
-    if (!this.#server) return;
+    if (!this.#serverPromise) return;
+    const server = await this.#serverPromise;
+    this.#serverPromise = undefined;
     await new Promise<void>((resolve, reject) => {
-      this.#server!.close((err) => (err ? reject(err) : resolve()));
+      server.close((err) => (err ? reject(err) : resolve()));
     });
   }
 }
