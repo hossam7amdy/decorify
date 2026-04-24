@@ -1,6 +1,6 @@
 import express from "express";
 import { pipeline } from "node:stream/promises";
-import type { Server } from "node:http";
+import type { AddressInfo, Server } from "node:net";
 import type { Express, Request, Response } from "express";
 import type { HttpAdapter, RouteDefinition } from "@decorify/core";
 import type { HttpContext, HttpRequest, HttpResponse } from "@decorify/core";
@@ -34,14 +34,13 @@ export class ExpressAdapter implements HttpAdapter<Express> {
     });
   }
 
-  async listen(port: number, host: string = "0.0.0.0"): Promise<void> {
-    await new Promise<void>((resolve) => {
-      this.#server = this.native.listen(port, host, () => resolve());
+  async listen(port: number, host: string = "0.0.0.0"): Promise<number> {
+    return new Promise<number>((resolve, reject) => {
+      this.#server = this.native.listen(port, host, () => {
+        resolve((this.#server!.address() as AddressInfo).port);
+      });
+      this.#server.once("error", reject);
     });
-  }
-
-  get server(): Server | undefined {
-    return this.#server;
   }
 
   async close(): Promise<void> {

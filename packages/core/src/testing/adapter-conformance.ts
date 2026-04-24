@@ -6,8 +6,6 @@ import type { HttpContext } from "../http/context.ts";
 export interface AdapterConformanceOptions<TAdapter> {
   name: string;
   makeAdapter: () => TAdapter;
-  /** Return the base URL (e.g. `http://127.0.0.1:PORT`) after listen() has been called. */
-  getBaseUrl: (adapter: TAdapter) => string;
 }
 
 export function runAdapterConformance<TAdapter extends HttpAdapter>(
@@ -19,8 +17,8 @@ export function runAdapterConformance<TAdapter extends HttpAdapter>(
 
     beforeEach(async () => {
       adapter = opts.makeAdapter();
-      await adapter.listen(0);
-      baseUrl = opts.getBaseUrl(adapter);
+      const port = await adapter.listen(0);
+      baseUrl = `http://127.0.0.1:${port}`;
     });
 
     afterEach(async () => {

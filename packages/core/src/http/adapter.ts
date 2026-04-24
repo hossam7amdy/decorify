@@ -21,8 +21,8 @@ export interface HttpAdapter<TNative = unknown> {
   /** Register a route handler with the underlying framework */
   registerRoute(route: RouteDefinition): void;
 
-  /** Start listening on a port */
-  listen(port: number, host?: string): Promise<void>;
+  /** Start listening on a port. Returns the actual bound port (useful when port 0 is passed). */
+  listen(port: number, host?: string): Promise<number>;
 
   /** Graceful shutdown */
   close(): Promise<void>;
