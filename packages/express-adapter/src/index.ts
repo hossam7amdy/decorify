@@ -8,8 +8,8 @@ import type { HttpContext, HttpRequest, HttpResponse } from "@decorify/core";
 export type ExpressContext = HttpContext<Request, Response>;
 
 export class ExpressAdapter implements HttpAdapter<Express> {
+  #server?: Server;
   readonly native: Express;
-  private server?: Server;
 
   constructor(opts: { jsonLimit?: string } = {}) {
     this.native = express();
@@ -36,14 +36,18 @@ export class ExpressAdapter implements HttpAdapter<Express> {
 
   async listen(port: number, host: string = "0.0.0.0"): Promise<void> {
     await new Promise<void>((resolve) => {
-      this.server = this.native.listen(port, host, () => resolve());
+      this.#server = this.native.listen(port, host, () => resolve());
     });
   }
 
+  get server(): Server | undefined {
+    return this.#server;
+  }
+
   async close(): Promise<void> {
-    if (!this.server) return;
+    if (!this.#server) return;
     await new Promise<void>((resolve, reject) => {
-      this.server!.close((err) => (err ? reject(err) : resolve()));
+      this.#server!.close((err) => (err ? reject(err) : resolve()));
     });
   }
 }

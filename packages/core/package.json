@@ -9,6 +9,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./testing": {
+      "types": "./dist/testing/index.d.ts",
+      "import": "./dist/testing/index.js"
     }
   },
   "files": [
@@ -46,14 +50,22 @@
     "node": ">=22.0.0"
   },
   "devDependencies": {
-    "@decorify/di": "workspace:*"
+    "@decorify/di": "workspace:*",
+    "@types/node": "^22.19.17",
+    "@vitest/coverage-v8": "^4.1.2",
+    "unplugin-swc": "^1.5.9",
+    "vitest": "^4.1.2"
   },
   "peerDependencies": {
-    "@decorify/di": "workspace:^"
+    "@decorify/di": "workspace:^",
+    "vitest": "^4.0.0"
   },
   "peerDependenciesMeta": {
     "@decorify/di": {
       "optional": false
+    },
+    "vitest": {
+      "optional": true
     }
   },
   "homepage": "https://github.com/hossam7amdy/decorify#readme",

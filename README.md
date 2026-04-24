@@ -321,8 +321,6 @@ decorify/
 pnpm install          # install all dependencies
 pnpm build            # build all packages (di → core → express-adapter)
 pnpm test             # run all test suites
-pnpm test:watch       # watch mode
-pnpm test:coverage    # coverage report
 pnpm format           # check formatting with prettier
 pnpm clean            # remove all dist/ directories
 ```
