@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { compose, type Middleware, type Next } from "./middleware.ts";
+import { compose, type Middleware } from "./middleware.ts";
 import type { HttpContext } from "./http/context.ts";
 
 function mockCtx(): HttpContext {
