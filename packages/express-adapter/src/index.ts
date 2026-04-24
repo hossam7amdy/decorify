@@ -40,13 +40,13 @@ export class ExpressAdapter implements HttpAdapter<Express> {
       return (server.address() as AddressInfo).port;
     }
 
-    this.#serverPromise = (() =>
-      new Promise<Server>((resolve, reject) => {
-        const server = this.native.listen(port, host, (error) => {
-          if (error) reject(error);
-          else resolve(server);
-        });
-      }))();
+    this.#serverPromise = new Promise<Server>((resolve, reject) => {
+      const server = this.native.listen(port, host, () => {
+        server.off("error", reject);
+        resolve(server);
+      });
+      server.once("error", reject);
+    });
 
     const server = await this.#serverPromise;
     return (server.address() as AddressInfo).port;
