@@ -384,6 +384,7 @@ export function runAdapterConformance<TAdapter extends HttpAdapter>(
         const res = await fetch(`${baseUrl}/conformance/res/stream-abort`, {
           signal: controller.signal,
         });
+        expect(res.status).toBe(200);
         const reader = res.body!.getReader();
         const { done } = await reader.read();
         expect(done).toBe(false);
