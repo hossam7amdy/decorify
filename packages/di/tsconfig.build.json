@@ -4,8 +4,7 @@
     "noEmit": false,
     "outDir": "dist",
     "composite": true,
-    "rootDir": "src",
-    "types": ["node"]
+    "rootDir": "src"
   },
   "include": ["src"],
   "exclude": ["**/*.test.ts", "dist"]
