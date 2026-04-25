@@ -1,6 +1,6 @@
 # @decorify/core
 
-Framework-agnostic HTTP backend framework built on **Stage 3 ES Decorators**. Provides routing, middleware, modules, and error handling. Pairs with an adapter (e.g. `@decorify/express-adapter`) to run on any HTTP framework.
+Framework-agnostic HTTP backend framework built on **Stage 3 ES Decorators**. Provides routing, middleware, modules, and error handling. Pairs with an adapter (e.g. `@decorify/express`) to run on any HTTP framework.
 
 Re-exports everything from `@decorify/di`, so you only need to install this package for most use cases.
 
@@ -16,7 +16,7 @@ pnpm add @decorify/core
 
 ```ts
 import { Application, defineModule } from "@decorify/core";
-import { ExpressAdapter } from "@decorify/express-adapter";
+import { ExpressAdapter } from "@decorify/express";
 import { UserController } from "./user.controller.js";
 import { UserService } from "./user.service.js";
 
@@ -31,7 +31,7 @@ const app = await Application.create({
   ],
 });
 
-await app.listen(3000, () => console.log("Listening on port 3000"));
+await app.listen(3000);
 ```
 
 ## Application
@@ -91,7 +91,7 @@ const config = app.resolve(CONFIG_TOKEN);
 Returns the underlying `HttpAdapter` instance with the given type.
 
 ```ts
-import type { ExpressAdapter } from "@decorify/express-adapter";
+import type { ExpressAdapter } from "@decorify/express";
 const expressApp = app.getAdapter<ExpressAdapter>().native;
 ```
 

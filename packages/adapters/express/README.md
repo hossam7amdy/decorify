@@ -1,11 +1,11 @@
-# @decorify/express-adapter
+# @decorify/express
 
 [Express 5](https://expressjs.com/) adapter for [`@decorify/core`](../core). Translates between Express `req`/`res` and the `HttpContext` interface.
 
 ## Installation
 
 ```bash
-pnpm add @decorify/express-adapter express
+pnpm add @decorify/express express
 ```
 
 > Express 5 is a peer dependency. Node.js >= 22 required.
@@ -14,7 +14,7 @@ pnpm add @decorify/express-adapter express
 
 ```ts
 import { Application, defineModule } from "@decorify/core";
-import { ExpressAdapter } from "@decorify/express-adapter";
+import { ExpressAdapter } from "@decorify/express";
 import { UserController } from "./user.controller.js";
 
 const app = await Application.create({
@@ -52,7 +52,7 @@ Alternatively, access it after creation via `app.getAdapter()`:
 
 ```ts
 const app = await Application.create({ adapter: new ExpressAdapter(), modules: [...] });
-import type { ExpressAdapter } from "@decorify/express-adapter";
+import type { ExpressAdapter } from "@decorify/express";
 const expressApp = app.getAdapter<ExpressAdapter>().native;
 ```
 
@@ -83,7 +83,7 @@ The underlying `express.Application` instance.
 A typed alias for `HttpContext<Request, Response>` from Express. Import it for use in middleware or helpers that need access to Express-native types via `ctx.raw`:
 
 ```ts
-import type { ExpressContext } from "@decorify/express-adapter";
+import type { ExpressContext } from "@decorify/express";
 import type { Middleware } from "@decorify/core";
 
 const expressMiddleware: Middleware = (ctx, next) => {

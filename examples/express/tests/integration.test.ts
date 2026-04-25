@@ -1,4 +1,4 @@
-import { ExpressAdapter } from "@decorify/express-adapter";
+import { ExpressAdapter } from "@decorify/express";
 import { Application } from "@decorify/core";
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
 import type { Collection, Db } from "mongodb";

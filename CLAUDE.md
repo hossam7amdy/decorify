@@ -8,14 +8,14 @@ Decorify is a framework-agnostic micro-framework for building HTTP backends usin
 
 - **`@decorify/di`** (`packages/di/`) — standalone IoC container, zero framework dependencies
 - **`@decorify/core`** (`packages/core/`) — HTTP framework (modules, routing, unified middleware); depends on `@decorify/di`
-- **`@decorify/express-adapter`** (`packages/express-adapter/`) — Express 5 adapter; depends on `@decorify/core`
+- **`@decorify/express`** (`packages/adapters/express/`) — Express 5 adapter; depends on `@decorify/core`
 
 ## Commands
 
 ### Root workspace (runs across all packages)
 
 - **Install:** `pnpm install` (enforced via `only-allow pnpm`)
-- **Build all:** `pnpm build` (builds packages in dependency order: di → core → express-adapter)
+- **Build all:** `pnpm build` (builds packages in dependency order: di → core → express)
 - **Test all:** `pnpm test` (vitest projects mode, runs all package test suites)
 - **Format check:** `pnpm format` (prettier)
 - **Clean all:** `pnpm clean`
@@ -53,8 +53,9 @@ decorify/
 │   │   ├── errors/           ← HttpException subclasses, defaultErrorHandler
 │   │   ├── application.ts    ← Application class (static async create() factory, private constructor)
 │   │   └── index.ts          ← re-exports everything including @decorify/di
-│   └── express-adapter/src/
-│       └── index.ts          ← ExpressAdapter implements HttpAdapter
+│   └── adapters/
+│       └── express/src/
+│           └── index.ts      ← ExpressAdapter implements HttpAdapter
 ```
 
 ### Decorator Metadata System
@@ -87,7 +88,7 @@ Each route composes a middleware chain at boot: **global → module → controll
 
 ### Adapter Pattern
 
-`HttpAdapter<TNative>` interface lives in `@decorify/core`. Methods: `registerRoute(route)`, `listen(port, host?)`, `close()`, `readonly native`. `ExpressAdapter` in `@decorify/express-adapter` wraps Express 5, translating between Express req/res and `HttpContext`. No `useMiddleware` on the adapter — use `adapter.native.use()` for native middleware.
+`HttpAdapter<TNative>` interface lives in `@decorify/core`. Methods: `registerRoute(route)`, `listen(port, host?)`, `close()`, `readonly native`. `ExpressAdapter` in `@decorify/express` wraps Express 5, translating between Express req/res and `HttpContext`. No `useMiddleware` on the adapter — use `adapter.native.use()` for native middleware.
 
 ### Lifecycle
 
@@ -100,4 +101,4 @@ No lifecycle hook interfaces (v1). `container.initialize()` is called during `Ap
 - Each package has its own `tsconfig.json` extending `../../tsconfig.base.json`, with `composite: true` for project references.
 - Tests use vitest with SWC for decorator transpilation (`decoratorVersion: "2023-11"`). Test files are colocated as `*.test.ts` next to source files.
 - Node >= 22 required.
-- Express 5 is a peer dependency of `@decorify/express-adapter` only.
+- Express 5 is a peer dependency of `@decorify/express` only.

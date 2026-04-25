@@ -4,11 +4,11 @@ A framework-agnostic micro-framework for building production-ready HTTP backends
 
 ## Packages
 
-| Package                                                   | Description                                                            |
-| --------------------------------------------------------- | ---------------------------------------------------------------------- |
-| [`@decorify/di`](./packages/di)                           | Standalone IoC container with `@Injectable`, `inject()`, and `@Inject` |
-| [`@decorify/core`](./packages/core)                       | HTTP framework — routing, middleware, modules, and error handling      |
-| [`@decorify/express-adapter`](./packages/express-adapter) | Express 5 adapter for `@decorify/core`                                 |
+| Package                                            | Description                                                            |
+| -------------------------------------------------- | ---------------------------------------------------------------------- |
+| [`@decorify/di`](./packages/di)                    | Standalone IoC container with `@Injectable`, `inject()`, and `@Inject` |
+| [`@decorify/core`](./packages/core)                | HTTP framework — routing, middleware, modules, and error handling      |
+| [`@decorify/express`](./packages/adapters/express) | Express 5 adapter for `@decorify/core`                                 |
 
 ## Features
 
@@ -30,7 +30,7 @@ A framework-agnostic micro-framework for building production-ready HTTP backends
 ```bash
 pnpm add @decorify/core
 # Express adapter (requires express as peer dependency)
-pnpm add @decorify/express-adapter express
+pnpm add @decorify/express express
 ```
 
 > `@decorify/core` re-exports everything from `@decorify/di`, so you only need one import in most cases.
@@ -40,7 +40,7 @@ pnpm add @decorify/express-adapter express
 ```ts
 // app.ts
 import { Application, defineModule } from "@decorify/core";
-import { ExpressAdapter } from "@decorify/express-adapter";
+import { ExpressAdapter } from "@decorify/express";
 import { UserController } from "./user.controller.js";
 
 export async function bootstrap() {
@@ -58,9 +58,8 @@ export async function bootstrap() {
 
 // main.ts
 const app = await bootstrap();
-await app.listen(3000, () => {
-  console.log("Server listening on port 3000");
-});
+await app.listen(3000);
+console.log("Server listening on port 3000");
 ```
 
 ## Modules
@@ -310,7 +309,8 @@ decorify/
 ├── packages/
 │   ├── di/                     # @decorify/di — standalone IoC container
 │   ├── core/                   # @decorify/core — HTTP framework
-│   └── express-adapter/        # @decorify/express-adapter — Express 5 adapter
+│   └── adapters/
+│       └── express/            # @decorify/express — Express 5 adapter
 ├── tsconfig.base.json
 └── vitest.config.ts
 ```
@@ -319,7 +319,7 @@ decorify/
 
 ```bash
 pnpm install          # install all dependencies
-pnpm build            # build all packages (di → core → express-adapter)
+pnpm build            # build all packages (di → core → express)
 pnpm test             # run all test suites
 pnpm format           # check formatting with prettier
 pnpm clean            # remove all dist/ directories
