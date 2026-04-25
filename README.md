@@ -4,11 +4,11 @@ A framework-agnostic micro-framework for building production-ready HTTP backends
 
 ## Packages
 
-| Package                                   | Description                                                            |
-| ----------------------------------------- | ---------------------------------------------------------------------- |
-| [`@decorify/di`](./packages/di)           | Standalone IoC container with `@Injectable`, `inject()`, and `@Inject` |
-| [`@decorify/core`](./packages/core)       | HTTP framework — routing, middleware, modules, and error handling      |
-| [`@decorify/express`](./packages/express) | Express 5 adapter for `@decorify/core`                                 |
+| Package                                            | Description                                                            |
+| -------------------------------------------------- | ---------------------------------------------------------------------- |
+| [`@decorify/di`](./packages/di)                    | Standalone IoC container with `@Injectable`, `inject()`, and `@Inject` |
+| [`@decorify/core`](./packages/core)                | HTTP framework — routing, middleware, modules, and error handling      |
+| [`@decorify/express`](./packages/adapters/express) | Express 5 adapter for `@decorify/core`                                 |
 
 ## Features
 
@@ -58,9 +58,8 @@ export async function bootstrap() {
 
 // main.ts
 const app = await bootstrap();
-await app.listen(3000, () => {
-  console.log("Server listening on port 3000");
-});
+await app.listen(3000);
+console.log("Server listening on port 3000");
 ```
 
 ## Modules
@@ -310,7 +309,8 @@ decorify/
 ├── packages/
 │   ├── di/                     # @decorify/di — standalone IoC container
 │   ├── core/                   # @decorify/core — HTTP framework
-│   └── express/        # @decorify/express — Express 5 adapter
+│   └── adapters/
+│       └── express/            # @decorify/express — Express 5 adapter
 ├── tsconfig.base.json
 └── vitest.config.ts
 ```
