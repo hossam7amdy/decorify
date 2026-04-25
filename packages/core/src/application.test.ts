@@ -28,8 +28,9 @@ function createMockAdapter(): HttpAdapter & {
         handler: route.handler,
       });
     },
-    async listen(port: number, host?: string): Promise<void> {
+    async listen(port: number, host?: string): Promise<number> {
       adapter.listenCalls.push({ port, host });
+      return port;
     },
     async close(): Promise<void> {
       adapter.closeCalled = true;

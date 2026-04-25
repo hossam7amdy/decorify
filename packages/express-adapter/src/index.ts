@@ -1,6 +1,6 @@
 import express from "express";
 import { pipeline } from "node:stream/promises";
-import { Server, type AddressInfo } from "node:net";
+import { Server } from "node:net";
 import type { Express, Request, Response } from "express";
 import type { HttpAdapter, RouteDefinition } from "@decorify/core";
 import type { HttpContext, HttpRequest, HttpResponse } from "@decorify/core";
@@ -37,19 +37,30 @@ export class ExpressAdapter implements HttpAdapter<Express> {
   async listen(port: number, host: string = "0.0.0.0"): Promise<number> {
     if (this.#serverPromise) {
       const server = await this.#serverPromise;
-      return (server.address() as AddressInfo).port;
+      const addr = server.address();
+      return addr && typeof addr !== "string" ? addr.port : 0;
     }
 
     this.#serverPromise = new Promise<Server>((resolve, reject) => {
-      const server = this.native.listen(port, host, () => {
-        server.off("error", reject);
-        resolve(server);
-      });
-      server.once("error", reject);
+      const onStartError = (err: unknown) => {
+        this.#serverPromise = undefined;
+        reject(err);
+      };
+      try {
+        const server = this.native.listen(port, host, () => {
+          server.off("error", onStartError);
+          resolve(server);
+        });
+        server.once("error", onStartError);
+      } catch (err) {
+        this.#serverPromise = undefined;
+        reject(err);
+      }
     });
 
     const server = await this.#serverPromise;
-    return (server.address() as AddressInfo).port;
+    const addr = server.address();
+    return addr && typeof addr !== "string" ? addr.port : 0;
   }
 
   async close(): Promise<void> {
