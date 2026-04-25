@@ -1,6 +1,6 @@
 import { ExpressAdapter } from "@decorify/express";
 import { Application } from "@decorify/core";
-import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach } from "vitest";
 import type { Collection, Db } from "mongodb";
 import request from "supertest";
 import { bootstrap } from "../src/app.js";
@@ -15,15 +15,11 @@ describe("Integration Tests", () => {
 
   beforeAll(async () => {
     app = await bootstrap();
-    adapter = app.getAdapter<ExpressAdapter>();
+    adapter = app.getAdapter() as ExpressAdapter;
 
     db = app.resolve(MONGO_DB);
     todoCollection = db.collection("todos");
     userCollection = db.collection("users");
-  });
-
-  afterAll(async () => {
-    await app.close();
   });
 
   beforeEach(async () => {

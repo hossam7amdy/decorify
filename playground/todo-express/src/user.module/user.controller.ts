@@ -5,8 +5,8 @@ import {
   Patch,
   Delete,
   type HttpContext,
-  inject,
 } from "@decorify/core";
+import { inject } from "@decorify/di";
 import { UserService } from "./user.service.ts";
 
 @Controller("/users")
