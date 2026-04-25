@@ -71,6 +71,11 @@ export function runAdapterConformance<TAdapter extends HttpAdapter>(
         expect(res.status).toBe(200);
         expect(capturedId).toBe("123");
       });
+
+      it("returns 404 for unregistered route", async () => {
+        const res = await fetch(`${baseUrl}/conformance/does-not-exist`);
+        expect(res.status).toBe(404);
+      });
     });
 
     describe("HTTP Methods", () => {
@@ -165,6 +170,21 @@ export function runAdapterConformance<TAdapter extends HttpAdapter>(
         expect(query["baz"]).toBe("1");
       });
 
+      it("req.query parses repeated params as an array", async () => {
+        let query: Record<string, string | string[] | undefined> = {};
+        adapter.registerRoute({
+          method: "GET",
+          path: "/conformance/req/query-array",
+          handler: async (ctx: HttpContext) => {
+            query = ctx.req.query;
+            await ctx.res.status(200).end();
+          },
+        });
+
+        await fetch(`${baseUrl}/conformance/req/query-array?a=1&a=2`);
+        expect(query["a"]).toEqual(["1", "2"]);
+      });
+
       it("req.headers exposes request headers (case-insensitive access)", async () => {
         let headers: Record<string, string | string[] | undefined> = {};
         adapter.registerRoute({
@@ -200,6 +220,48 @@ export function runAdapterConformance<TAdapter extends HttpAdapter>(
         });
         expect(body).toEqual({ message: "hello" });
       });
+
+      it("req.body() returns the same object reference on repeated calls", async () => {
+        let first: unknown;
+        let second: unknown;
+        adapter.registerRoute({
+          method: "POST",
+          path: "/conformance/req/body-twice",
+          handler: async (ctx: HttpContext) => {
+            first = await ctx.req.body();
+            second = await ctx.req.body();
+            await ctx.res.status(200).end();
+          },
+        });
+
+        await fetch(`${baseUrl}/conformance/req/body-twice`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: "hello" }),
+        });
+        expect(first).toEqual({ message: "hello" });
+        expect(second).toBe(first);
+      });
+
+      it("oversized JSON body surfaces as 4xx not 5xx", async () => {
+        adapter.registerRoute({
+          method: "POST",
+          path: "/conformance/req/body-large",
+          handler: async (ctx: HttpContext) => {
+            await ctx.req.body();
+            await ctx.res.status(200).end();
+          },
+        });
+
+        const largeBody = JSON.stringify({ data: "x".repeat(2 * 1024 * 1024) });
+        const res = await fetch(`${baseUrl}/conformance/req/body-large`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: largeBody,
+        });
+        expect(res.status).toBeGreaterThanOrEqual(400);
+        expect(res.status).toBeLessThan(500);
+      });
     });
 
     describe("HttpResponse Contract", () => {
@@ -215,6 +277,21 @@ export function runAdapterConformance<TAdapter extends HttpAdapter>(
         const res = await fetch(`${baseUrl}/conformance/res/json`);
         expect(res.headers.get("content-type")).toContain("application/json");
         expect(await res.json()).toEqual({ result: "success" });
+      });
+
+      it("res.status(code).json(data) sets both status and JSON body", async () => {
+        adapter.registerRoute({
+          method: "GET",
+          path: "/conformance/res/status-json",
+          handler: async (ctx: HttpContext) => {
+            await ctx.res.status(201).json({ created: true });
+          },
+        });
+
+        const res = await fetch(`${baseUrl}/conformance/res/status-json`);
+        expect(res.status).toBe(201);
+        expect(res.headers.get("content-type")).toContain("application/json");
+        expect(await res.json()).toEqual({ created: true });
       });
 
       it("res.send(string) sends string body", async () => {
@@ -464,6 +541,29 @@ export function runAdapterConformance<TAdapter extends HttpAdapter>(
 
         const res = await fetch(`${baseUrl}/conformance/ctx/raw`);
         expect(res.status).toBe(200);
+      });
+    });
+
+    describe("Server Lifecycle", () => {
+      it("close() stops accepting new connections", async () => {
+        const tempAdapter = opts.makeAdapter();
+        const tempPort = await tempAdapter.listen(0);
+        const tempUrl = `http://127.0.0.1:${tempPort}`;
+
+        tempAdapter.registerRoute({
+          method: "GET",
+          path: "/lifecycle/alive",
+          handler: async (ctx: HttpContext) => {
+            await ctx.res.status(200).send("alive");
+          },
+        });
+
+        const before = await fetch(`${tempUrl}/lifecycle/alive`);
+        expect(before.status).toBe(200);
+
+        await tempAdapter.close();
+
+        await expect(fetch(`${tempUrl}/lifecycle/alive`)).rejects.toThrow();
       });
     });
   });
