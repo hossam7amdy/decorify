@@ -1,4 +1,4 @@
-# @decorify/express-adapter
+# @decorify/express
 
 ## 0.1.0-alpha.0
 

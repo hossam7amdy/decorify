@@ -1,5 +1,5 @@
 {
-  "name": "@decorify/express-adapter",
+  "name": "@decorify/express",
   "version": "0.1.0-alpha.0",
   "description": "Express 5 adapter for @decorify/core.",
   "type": "module",
@@ -62,6 +62,6 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/hossam7amdy/decorify",
-    "directory": "packages/express-adapter"
+    "directory": "packages/express"
   }
 }

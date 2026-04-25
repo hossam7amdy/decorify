@@ -1,5 +1,5 @@
 import { Application } from "@decorify/core";
-import { ExpressAdapter } from "@decorify/express-adapter";
+import { ExpressAdapter } from "@decorify/express";
 import { databaseModule } from "./database.module.ts";
 import { configModule } from "./config.module.ts";
 import { todoModule } from "./todo.module/index.ts";

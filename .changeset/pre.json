@@ -4,7 +4,7 @@
   "initialVersions": {
     "@decorify/core": "0.0.1",
     "@decorify/di": "0.0.1",
-    "@decorify/express-adapter": "0.0.1"
+    "@decorify/express": "0.0.1"
   },
   "changesets": ["eleven-laws-beam"]
 }
