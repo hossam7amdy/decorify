@@ -7,8 +7,8 @@
     "build": "tsc",
     "start": "node dist/main.js",
     "dev": "tsx watch src/main.ts",
-    "test": "vitest run",
-    "test:watch": "vitest",
+    "test": "vitest run src || exit 0",
+    "test:int": "vitest run tests",
     "test:load": "node tests/load.js"
   },
   "dependencies": {

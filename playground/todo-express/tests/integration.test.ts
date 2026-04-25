@@ -1,6 +1,6 @@
 import { ExpressAdapter } from "@decorify/express";
 import { Application } from "@decorify/core";
-import { describe, it, expect, beforeAll, beforeEach } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
 import type { Collection, Db } from "mongodb";
 import request from "supertest";
 import { bootstrap } from "../src/app.js";
@@ -25,6 +25,10 @@ describe("Integration Tests", () => {
   beforeEach(async () => {
     await todoCollection.deleteMany({});
     await userCollection.deleteMany({});
+  });
+
+  afterAll(async () => {
+    await app.close();
   });
 
   describe("Todos API", () => {
