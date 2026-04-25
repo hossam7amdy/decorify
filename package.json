@@ -4,12 +4,12 @@
   "type": "module",
   "scripts": {
     "prepare": "husky",
-    "format": "prettier --check .",
     "preinstall": "npx only-allow pnpm",
-    "build": "pnpm --filter ./packages/** build",
-    "dev": "pnpm --filter ./packages/** --parallel --parallel dev",
-    "test": "pnpm --filter ./packages/** --parallel --parallel test",
-    "clean": "pnpm --filter ./packages/** --parallel --parallel clean",
+    "format": "prettier --check .",
+    "build": "pnpm -r build",
+    "dev": "pnpm -r --parallel dev",
+    "test": "pnpm -r --parallel test",
+    "clean": "pnpm -r --parallel clean",
     "changeset": "changeset"
   },
   "engines": {
