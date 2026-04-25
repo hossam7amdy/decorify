@@ -62,9 +62,7 @@ export class ExpressAdapter implements HttpAdapter<Application> {
   }
 
   async close(): Promise<void> {
-    if (!this.#server) {
-      throw new Error("Server is not running");
-    }
+    if (!this.#server) return;
     const server = this.#server;
     this.#server = undefined;
     await new Promise<void>((resolve, reject) =>
@@ -118,8 +116,8 @@ function buildContext(req: Request, res: Response): ExpressContext {
           throw err;
         }
       },
-      redirect: async (u, code = 302) => {
-        res.redirect(code, u);
+      redirect: async (url, code = 302) => {
+        res.redirect(code, url);
       },
       end: async () => {
         res.end();

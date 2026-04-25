@@ -5,8 +5,8 @@ import {
   Patch,
   Delete,
   type HttpContext,
-  inject,
 } from "@decorify/core";
+import { inject } from "@decorify/di";
 import { TodoService } from "./todo.service.ts";
 
 @Controller("/todos")

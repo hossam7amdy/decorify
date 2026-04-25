@@ -1,17 +1,20 @@
 {
-  "name": "express-example",
+  "name": "todo-express",
+  "description": "Simple TODO API using decorify + express-adapter",
   "main": "index.js",
   "type": "module",
   "scripts": {
     "build": "tsc",
     "start": "node dist/main.js",
     "dev": "tsx watch src/main.ts",
-    "test": "vitest run",
-    "test:watch": "vitest",
+    "test": "vitest run src --passWithNoTests",
+    "test:int": "vitest run tests",
     "test:load": "node tests/load.js"
   },
-  "packageManager": "pnpm@10.26.2",
   "dependencies": {
+    "@decorify/di": "workspace:*",
+    "@decorify/core": "workspace:*",
+    "@decorify/express": "workspace:*",
     "dotenv": "^17.4.1",
     "express": "^5.2.1",
     "mongodb": "^7.1.1",
@@ -22,6 +25,9 @@
     "@types/supertest": "^7.2.0",
     "autocannon": "^8.0.0",
     "supertest": "^7.2.2",
-    "tsx": "^4.21.0"
+    "tsx": "^4.21.0",
+    "@vitest/coverage-v8": "^4.1.2",
+    "unplugin-swc": "^1.5.9",
+    "vitest": "^4.1.2"
   }
 }

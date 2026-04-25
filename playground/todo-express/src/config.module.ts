@@ -1,10 +1,7 @@
 import { z } from "zod/v4";
 import { configDotenv } from "dotenv";
-import {
-  defineModule,
-  InjectionToken,
-  type FactoryProvider,
-} from "@decorify/core";
+import { defineModule } from "@decorify/core";
+import { InjectionToken, type FactoryProvider } from "@decorify/di";
 
 const configSchema = z.object({
   PORT: z.coerce.number().int().default(3000),

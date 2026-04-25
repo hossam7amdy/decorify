@@ -15,20 +15,20 @@ describe("Integration Tests", () => {
 
   beforeAll(async () => {
     app = await bootstrap();
-    adapter = app.getAdapter<ExpressAdapter>();
+    adapter = app.getAdapter() as ExpressAdapter;
 
     db = app.resolve(MONGO_DB);
     todoCollection = db.collection("todos");
     userCollection = db.collection("users");
   });
 
-  afterAll(async () => {
-    await app.close();
-  });
-
   beforeEach(async () => {
     await todoCollection.deleteMany({});
     await userCollection.deleteMany({});
+  });
+
+  afterAll(async () => {
+    await app.close();
   });
 
   describe("Todos API", () => {

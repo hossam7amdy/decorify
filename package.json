@@ -5,10 +5,10 @@
   "scripts": {
     "prepare": "husky",
     "preinstall": "npx only-allow pnpm",
+    "format": "prettier --check .",
     "build": "pnpm -r build",
     "dev": "pnpm -r --parallel dev",
     "test": "pnpm -r --parallel test",
-    "format": "prettier --check .",
     "clean": "pnpm -r --parallel clean",
     "changeset": "changeset"
   },

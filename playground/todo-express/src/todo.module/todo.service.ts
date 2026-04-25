@@ -1,5 +1,5 @@
 import { ObjectId, Collection } from "mongodb";
-import { inject, Injectable } from "@decorify/core";
+import { inject, Injectable } from "@decorify/di";
 import { NotFoundException } from "@decorify/core";
 import { MONGO_DB } from "../database.module.ts";
 import type { CreateTodoDto, UpdateTodoDto, TodoDto } from "./todo.dto.ts";
