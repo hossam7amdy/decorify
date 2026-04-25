@@ -1,20 +1,27 @@
 import express from "express";
 import { pipeline } from "node:stream/promises";
-import type { Server } from "node:http";
-import type { Express, Request, Response } from "express";
+import { Server } from "node:net";
+import type { Application, Request, Response } from "express";
 import type { HttpAdapter, RouteDefinition } from "@decorify/core";
 import type { HttpContext, HttpRequest, HttpResponse } from "@decorify/core";
 
 export type ExpressContext = HttpContext<Request, Response>;
 
-export class ExpressAdapter implements HttpAdapter<Express> {
-  readonly native: Express;
-  private server?: Server;
+export interface ExpressAdapterOptions {
+  application?: Application;
+  /** Defaults to '100kb' */
+  jsonLimit?: string;
+}
 
-  constructor(opts: { jsonLimit?: string } = {}) {
-    this.native = express();
+export class ExpressAdapter implements HttpAdapter<Application> {
+  #server?: Server;
+  readonly native: Application;
+
+  constructor(opts: ExpressAdapterOptions = {}) {
+    const { application, jsonLimit } = opts;
+    this.native = application ?? express();
     this.native.disable("x-powered-by");
-    this.native.use(express.json({ limit: opts.jsonLimit ?? "1mb" }));
+    this.native.use(express.json({ limit: jsonLimit ?? "100kb" }));
     this.native.use(express.urlencoded({ extended: true }));
   }
 
@@ -34,17 +41,35 @@ export class ExpressAdapter implements HttpAdapter<Express> {
     });
   }
 
-  async listen(port: number, host: string = "0.0.0.0"): Promise<void> {
-    await new Promise<void>((resolve) => {
-      this.server = this.native.listen(port, host, () => resolve());
+  async listen(port: number, host: string = "0.0.0.0"): Promise<number> {
+    if (this.#server) {
+      throw new Error(
+        `Server is already listening on ${getServerAddress(this.#server)}`,
+      );
+    }
+
+    const server = (this.#server = this.native.listen(port, host));
+
+    return new Promise((resolve, reject) => {
+      server.once("listening", () => {
+        resolve(getServerAddress(server));
+      });
+      server.once("error", (error) => {
+        this.#server = undefined;
+        reject(error);
+      });
     });
   }
 
   async close(): Promise<void> {
-    if (!this.server) return;
-    await new Promise<void>((resolve, reject) => {
-      this.server!.close((err) => (err ? reject(err) : resolve()));
-    });
+    if (!this.#server) {
+      throw new Error("Server is not running");
+    }
+    const server = this.#server;
+    this.#server = undefined;
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
   }
 }
 
@@ -104,4 +129,12 @@ function buildContext(req: Request, res: Response): ExpressContext {
   })();
 
   return { req: httpReq, res: httpRes, state: new Map(), raw: { req, res } };
+}
+
+function getServerAddress(server: Server): number {
+  const address = server.address();
+  if (address && typeof address !== "string") {
+    return address.port;
+  }
+  return 0;
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { compose, type Middleware, type Next } from "./middleware.ts";
+import { compose, type Middleware } from "./middleware.ts";
 import type { HttpContext } from "./http/context.ts";
 
 function mockCtx(): HttpContext {
@@ -101,14 +101,14 @@ describe("compose()", () => {
   });
 
   it("middleware can modify/observe after next() returns", async () => {
-    let terminalRan = false;
+    let handlerRan = false;
     const mw: Middleware = async (_ctx, next) => {
       await next();
-      expect(terminalRan).toBe(true);
+      expect(handlerRan).toBe(true);
     };
 
     const handler = vi.fn().mockImplementation(() => {
-      terminalRan = true;
+      handlerRan = true;
     });
 
     await compose([mw])(mockCtx(), handler);

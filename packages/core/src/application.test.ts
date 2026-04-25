@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { Container, InjectionToken } from "@decorify/di";
 import { Application } from "./application.ts";
-import type { HttpAdapter, RouteDefinition, Handler } from "./http/adapter.ts";
+import type { HttpAdapter, RouteDefinition } from "./http/adapter.ts";
 import type { HttpContext, HttpResponse } from "./http/context.ts";
 import type { ModuleDefinition } from "./module.ts";
 import type { Middleware } from "./middleware.ts";
@@ -28,8 +28,9 @@ function createMockAdapter(): HttpAdapter & {
         handler: route.handler,
       });
     },
-    async listen(port: number, host?: string): Promise<void> {
+    async listen(port: number, host?: string): Promise<number> {
       adapter.listenCalls.push({ port, host });
+      return port;
     },
     async close(): Promise<void> {
       adapter.closeCalled = true;

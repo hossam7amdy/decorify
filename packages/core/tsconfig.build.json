@@ -4,7 +4,8 @@
     "noEmit": false,
     "outDir": "dist",
     "composite": true,
-    "rootDir": "src"
+    "rootDir": "src",
+    "types": ["node"]
   },
   "references": [{ "path": "../di/tsconfig.build.json" }],
   "include": ["src"],
