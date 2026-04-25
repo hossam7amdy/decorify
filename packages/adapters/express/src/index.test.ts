@@ -1,4 +1,4 @@
-import { ExpressAdapter } from "./index.ts";
+import { ExpressAdapter } from "./index.js";
 import { runAdapterConformance } from "@decorify/core/testing";
 
 runAdapterConformance({
