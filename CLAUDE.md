@@ -8,7 +8,7 @@ Decorify is a framework-agnostic micro-framework for building HTTP backends usin
 
 - **`@decorify/di`** (`packages/di/`) — standalone IoC container, zero framework dependencies
 - **`@decorify/core`** (`packages/core/`) — HTTP framework (modules, routing, unified middleware); depends on `@decorify/di`
-- **`@decorify/express`** (`packages/express/`) — Express 5 adapter; depends on `@decorify/core`
+- **`@decorify/express`** (`packages/adapters/express/`) — Express 5 adapter; depends on `@decorify/core`
 
 ## Commands
 
@@ -53,8 +53,9 @@ decorify/
 │   │   ├── errors/           ← HttpException subclasses, defaultErrorHandler
 │   │   ├── application.ts    ← Application class (static async create() factory, private constructor)
 │   │   └── index.ts          ← re-exports everything including @decorify/di
-│   └── express/src/
-│       └── index.ts          ← ExpressAdapter implements HttpAdapter
+│   └── adapters/
+│       └── express/src/
+│           └── index.ts      ← ExpressAdapter implements HttpAdapter
 ```
 
 ### Decorator Metadata System
