@@ -3,7 +3,13 @@
   "changelog": "@changesets/cli/changelog",
   "commit": false,
   "fixed": [
-    ["@decorify/di", "@decorify/core", "@decorify/express", "@decorify/testing"]
+    [
+      "@decorify/di",
+      "@decorify/core",
+      "@decorify/express",
+      "@decorify/fastify",
+      "@decorify/testing"
+    ]
   ],
   "linked": [],
   "access": "public",

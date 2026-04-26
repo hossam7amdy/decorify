@@ -9,13 +9,14 @@ Decorify is a framework-agnostic micro-framework for building HTTP backends usin
 - **`@decorify/di`** (`packages/di/`) — standalone IoC container, zero framework dependencies
 - **`@decorify/core`** (`packages/core/`) — HTTP framework (modules, routing, unified middleware); depends on `@decorify/di`
 - **`@decorify/express`** (`packages/adapters/express/`) — Express 5 adapter; depends on `@decorify/core`
+- **`@decorify/fastify`** (`packages/adapters/fastify/`) — Fastify 5 adapter; depends on `@decorify/core`
 
 ## Commands
 
 ### Root workspace (runs across all packages)
 
 - **Install:** `pnpm install` (enforced via `only-allow pnpm`)
-- **Build all:** `pnpm build` (builds packages in dependency order: di → core → express)
+- **Build all:** `pnpm build` (builds packages in dependency order: di → core → express & fastify)
 - **Test all:** `pnpm test` (vitest projects mode, runs all package test suites)
 - **Format check:** `pnpm format` (prettier)
 - **Clean all:** `pnpm clean`
@@ -54,8 +55,10 @@ decorify/
 │   │   ├── application.ts    ← Application class (static async create() factory, private constructor)
 │   │   └── index.ts          ← re-exports everything including @decorify/di
 │   └── adapters/
-│       └── express/src/
-│           └── index.ts      ← ExpressAdapter implements HttpAdapter
+│       ├── express/src/
+│       │   └── index.ts      ← ExpressAdapter implements HttpAdapter
+│       └── fastify/src/
+│           └── index.ts      ← FastifyAdapter implements HttpAdapter
 ```
 
 ### Decorator Metadata System
@@ -84,11 +87,11 @@ Each route composes a middleware chain at boot: **global → module → controll
 
 ### HttpContext (`packages/core/src/http/context.ts`)
 
-`HttpContext<TReq, TRes>` is generic over native request/response types. Contains `req` (HttpRequest), `res` (HttpResponse), `state` (per-request Map), and `raw` (escape hatch to native types). Each adapter exports a typed alias (e.g., `ExpressContext = HttpContext<Request, Response>`).
+`HttpContext<TReq, TRes>` is generic over native request/response types. Contains `req` (HttpRequest), `res` (HttpResponse), `state` (per-request Map), and `raw` (escape hatch to native types). Each adapter exports a typed alias (e.g., `ExpressContext = HttpContext<Request, Response>`, `FastifyContext = HttpContext<FastifyRequest, FastifyReply>`).
 
 ### Adapter Pattern
 
-`HttpAdapter<TNative>` interface lives in `@decorify/core`. Methods: `registerRoute(route)`, `listen(port, host?)`, `close()`, `readonly native`. `ExpressAdapter` in `@decorify/express` wraps Express 5, translating between Express req/res and `HttpContext`. No `useMiddleware` on the adapter — use `adapter.native.use()` for native middleware.
+`HttpAdapter<TNative>` interface lives in `@decorify/core`. Methods: `registerRoute(route)`, `listen(port, host?)`, `close()`, `readonly native`. `ExpressAdapter` in `@decorify/express` wraps Express 5, `FastifyAdapter` in `@decorify/fastify` wraps Fastify 5, translating between native req/res and `HttpContext`. No `useMiddleware` on the adapter — use `adapter.native.use()` for native middleware.
 
 ### Lifecycle
 
