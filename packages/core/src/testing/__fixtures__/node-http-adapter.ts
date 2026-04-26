@@ -50,8 +50,9 @@ export class NodeHttpAdapter implements HttpAdapter<http.Server> {
     this.native = http.createServer((req, res) =>
       this.#dispatch(req, res).catch((err) => {
         if (!res.headersSent) {
+          console.error("Internal Server Error", err);
           res.writeHead(500, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ error: String(err) }));
+          res.end(JSON.stringify({ error: "Internal Server Error" }));
         }
       }),
     );
@@ -114,8 +115,9 @@ export class NodeHttpAdapter implements HttpAdapter<http.Server> {
       await Promise.resolve(matchedRoute.handler(ctx));
     } catch (err) {
       if (!res.headersSent) {
+        console.error("Internal Server Error", err);
         res.writeHead(500, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: String(err) }));
+        res.end(JSON.stringify({ error: "Internal Server Error" }));
       }
     }
   }

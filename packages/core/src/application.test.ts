@@ -42,6 +42,7 @@ function createHttpMockCtx(
   let statusCode = 200;
   let sent = overrides.sent ?? false;
   let jsonData: unknown;
+  let bodyPromise: Promise<any> | undefined;
 
   const req: HttpRequest<MockNativeRequest> = {
     method: overrides.method ?? "GET",
@@ -50,7 +51,7 @@ function createHttpMockCtx(
     headers: {},
     query: {},
     params: {},
-    body: () => Promise.resolve<any>({}),
+    body: () => (bodyPromise ??= Promise.resolve<any>({})),
     native: null,
   };
 
