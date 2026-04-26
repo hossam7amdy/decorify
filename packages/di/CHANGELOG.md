@@ -2,7 +2,7 @@
 
 ## 0.1.0
 
-### Patch Changes
+### Minor Changes
 
 - 0501bb1: Automate release workflow and implement recent framework improvements
 
