@@ -1,14 +1,44 @@
 # Adapter Conformance Suite
 
-`@decorify/core/testing` ships a conformance suite that verifies an `HttpAdapter` implementation satisfies the full `HttpContext` contract. If your adapter passes the suite, it will work correctly as a drop-in for `Application.create()`.
+`@decorify/testing` ships a conformance suite that verifies an `HttpAdapter` implementation satisfies the full `HttpContext` contract.
 
 ## Quick Start
 
+The suite is runner-agnostic. Pass `{ describe, it, expect }` from any test framework.
+
+### With `node:test` (built-in, no extra deps)
+
 ```ts
 // packages/adapters/my-framework/test/adapter-conformance.test.ts
-import { describe, it, expect } from "vitest"; // or jest, @jest/globals, etc.
+import { suite, it } from "node:test";
+import assert from "node:assert/strict";
 import { MyAdapter } from "../src/adapter.ts";
-import { runAdapterConformance } from "@decorify/core/testing";
+import { runAdapterConformance } from "@decorify/testing";
+import type { ConformanceTestRunner } from "@decorify/testing";
+
+const describe: ConformanceTestRunner["describe"] = (label, fn) =>
+  suite(label, { concurrency: true, timeout: 500 }, fn);
+
+const expect: ConformanceTestRunner["expect"] = (actual: any) => ({
+  toBe: (expected) => assert.strictEqual(actual, expected),
+  toEqual: (expected) => assert.deepStrictEqual(actual, expected),
+  toContain: (expected) => assert.ok(actual.includes(expected)),
+  toMatch: (pattern) =>
+    typeof pattern === "string"
+      ? assert.ok(String(actual).includes(pattern))
+      : assert.match(String(actual), pattern),
+  toBeGreaterThanOrEqual: (n) => assert.ok(actual >= n),
+  toBeLessThan: (n) => assert.ok(actual < n),
+  toBeDefined: () => assert.notStrictEqual(actual, undefined),
+  toBeUndefined: () => assert.strictEqual(actual, undefined),
+  not: { toBeNull: () => assert.notStrictEqual(actual, null) },
+  rejects: {
+    toThrow: async () =>
+      assert.rejects(async () =>
+        typeof actual === "function" ? await actual() : await actual,
+      ),
+  },
+});
 
 runAdapterConformance({
   name: MyAdapter.name,
@@ -17,16 +47,38 @@ runAdapterConformance({
 });
 ```
 
-Run with vitest:
+Run:
+
+```bash
+node --test
+```
+
+### With vitest
+
+```ts
+import { describe, it, expect } from "vitest";
+import { MyAdapter } from "../src/adapter.ts";
+import { runAdapterConformance } from "@decorify/testing";
+
+runAdapterConformance({
+  name: MyAdapter.name,
+  makeAdapter: () => new MyAdapter(),
+  runner: { describe, it, expect },
+});
+```
+
+Run:
 
 ```bash
 pnpm vitest run
 ```
 
-Run with Jest:
+### With Jest
 
 ```ts
 import { describe, it, expect } from "@jest/globals";
+import { runAdapterConformance } from "@decorify/testing";
+
 runAdapterConformance({ ..., runner: { describe, it, expect } });
 ```
 
@@ -152,6 +204,7 @@ Works out of the box. Register routes before or after `listen()` (Express's rout
 runAdapterConformance({
   name: "ExpressAdapter",
   makeAdapter: () => new ExpressAdapter(), // jsonLimit defaults to "100kb"
+  runner: { describe, it, expect },
 });
 ```
 
@@ -186,4 +239,4 @@ Install `koa-bodyparser` for JSON body support. Koa does not auto-render errors 
 
 ### `node:http` (raw)
 
-Requires manual: routing (path-to-regexp), JSON body parsing, error rendering, query parsing. See `src/testing/__fixtures__/node-http-adapter.ts` for a reference implementation used in the portability tests.
+Requires manual: routing (path-to-regexp), JSON body parsing, error rendering, query parsing. See `test/__fixtures__/node-http-adapter.ts` for a reference implementation used in the portability tests.

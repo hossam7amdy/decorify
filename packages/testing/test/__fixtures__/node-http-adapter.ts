@@ -8,14 +8,12 @@
 import * as http from "node:http";
 import type {
   HttpAdapter,
-  RouteDefinition,
   HttpMethod,
-} from "../../http/adapter.ts";
-import type {
   HttpContext,
   HttpRequest,
   HttpResponse,
-} from "../../http/context.ts";
+  RouteDefinition,
+} from "@decorify/core";
 
 type MatchFn = (path: string) => false | { params: Record<string, string> };
 
@@ -77,9 +75,10 @@ export class NodeHttpAdapter implements HttpAdapter<http.Server> {
   }
 
   async close(): Promise<void> {
-    return new Promise((resolve, reject) =>
-      this.native.close((err) => (err ? reject(err) : resolve())),
-    );
+    return new Promise((resolve, reject) => {
+      this.native.closeAllConnections();
+      this.native.close((err) => (err ? reject(err) : resolve()));
+    });
   }
 
   async #dispatch(
