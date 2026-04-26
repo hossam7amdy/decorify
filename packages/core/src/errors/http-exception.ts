@@ -1,4 +1,4 @@
-import type { HttpStatus } from "../http/status-code.ts";
+import type { HttpStatus } from "./status-code.ts";
 
 export class HttpException extends Error {
   readonly status: HttpStatus;

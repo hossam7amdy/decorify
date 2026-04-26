@@ -19,7 +19,6 @@ export {
 export type { RouteMeta, ControllerMeta } from "./decorators/index.ts";
 
 // HTTP
-export { HttpStatus } from "./http/index.ts";
 export type {
   Handler,
   HttpMethod,
@@ -32,6 +31,7 @@ export type {
 
 // Errors
 export {
+  HttpStatus,
   HttpException,
   BadRequestException,
   UnauthorizedException,
