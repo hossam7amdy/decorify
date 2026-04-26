@@ -13,7 +13,7 @@ Decorify is a framework-agnostic micro-framework for building HTTP backends usin
 ### Root workspace (runs across all packages)
 
 - **Install:** `pnpm install` (enforced via `only-allow pnpm`)
-- **Build all:** `pnpm build` (builds packages in dependency order: di → core → express, fastify, testing)
+- **Build all:** `pnpm build` (builds packages in dependency order: di → core → express, testing & fastify)
 - **Test all:** `pnpm test` (runs all package test suites)
 - **Format check:** `pnpm format` (prettier)
 - **Clean all:** `pnpm clean`

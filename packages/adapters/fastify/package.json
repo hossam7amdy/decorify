@@ -1,0 +1,66 @@
+{
+  "name": "@decorify/fastify",
+  "version": "0.1.0",
+  "description": "Fastify 5 adapter for @decorify/core.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc --build tsconfig.build.json",
+    "dev": "tsc --build tsconfig.build.json --watch --pretty",
+    "clean": "node --eval \"fs.rmSync('dist', { recursive: true, force: true }); fs.rmSync('tsconfig.build.tsbuildinfo', { force: true })\"",
+    "prepublishOnly": "pnpm clean && pnpm build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
+  },
+  "keywords": [
+    "decorify",
+    "fastify",
+    "adapter",
+    "decorators",
+    "typescript"
+  ],
+  "author": "Hossam Hamdy <hossamhamdy117@gmail.com>",
+  "license": "ISC",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "devDependencies": {
+    "@decorify/core": "workspace:*",
+    "@decorify/testing": "workspace:*",
+    "@types/node": "^22.19.17",
+    "@vitest/coverage-v8": "^4.1.2",
+    "unplugin-swc": "^1.5.9",
+    "vitest": "^4.1.2"
+  },
+  "peerDependencies": {
+    "@decorify/core": "workspace:^",
+    "fastify": "^5.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@decorify/core": {
+      "optional": false
+    }
+  },
+  "homepage": "https://github.com/hossam7amdy/decorify#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hossam7amdy/decorify",
+    "directory": "packages/adapters/fastify"
+  }
+}
