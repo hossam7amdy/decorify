@@ -1,5 +1,6 @@
 {
   "name": "todo-express",
+  "private": true,
   "description": "Simple TODO API using decorify + express-adapter",
   "main": "index.js",
   "type": "module",
