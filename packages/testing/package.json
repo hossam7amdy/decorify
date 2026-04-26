@@ -1,7 +1,7 @@
 {
-  "name": "@decorify/express",
+  "name": "@decorify/testing",
   "version": "0.1.0-alpha.0",
-  "description": "Express 5 adapter for @decorify/core.",
+  "description": "Testing utilities for Decorify.",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -25,44 +25,37 @@
     "dev": "tsc --build tsconfig.build.json --watch --pretty",
     "clean": "node --eval \"fs.rmSync('dist', { recursive: true, force: true }); fs.rmSync('tsconfig.build.tsbuildinfo', { force: true })\"",
     "prepublishOnly": "pnpm clean && pnpm build",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test": "node --experimental-strip-types --test test/**/*.test.ts",
+    "test:watch": "node --experimental-strip-types --test --watch test/**/*.test.ts"
   },
   "keywords": [
-    "decorify",
-    "express",
-    "adapter",
-    "decorators",
-    "typescript"
+    "testing",
+    "typescript",
+    "http",
+    "backend",
+    "framework"
   ],
   "author": "Hossam Hamdy <hossamhamdy117@gmail.com>",
   "license": "ISC",
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=22.18.0"
   },
   "devDependencies": {
-    "@decorify/core": "workspace:*",
-    "@decorify/testing": "workspace:*",
-    "@types/express": "^5.0.6",
     "@types/node": "^22.19.17",
-    "@vitest/coverage-v8": "^4.1.2",
-    "unplugin-swc": "^1.5.9",
-    "vitest": "^4.1.2"
+    "@decorify/core": "workspace:*"
   },
   "peerDependencies": {
-    "@decorify/core": "workspace:^",
-    "express": "^5.0.0"
+    "@decorify/core": "workspace:^"
   },
   "peerDependenciesMeta": {
     "@decorify/core": {
-      "optional": false
+      "optional": true
     }
   },
   "homepage": "https://github.com/hossam7amdy/decorify#readme",
   "repository": {
     "type": "git",
     "url": "https://github.com/hossam7amdy/decorify",
-    "directory": "packages/adapters/express"
+    "directory": "packages/testing"
   }
 }

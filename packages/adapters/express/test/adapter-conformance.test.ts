@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { ExpressAdapter } from "../src/adapter.ts";
-import { runAdapterConformance } from "@decorify/core/testing";
+import { runAdapterConformance } from "@decorify/testing";
 
 runAdapterConformance({
   name: ExpressAdapter.name,
