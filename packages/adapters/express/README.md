@@ -33,7 +33,7 @@ await app.listen(3000);
 ### Options
 
 ```ts
-const adapter = new ExpressAdapter({ jsonLimit: "5mb" }); // default: "1mb"
+const adapter = new ExpressAdapter({ jsonLimit: "5mb" }); // default: "100kb"
 ```
 
 ### Accessing the Express instance
@@ -53,7 +53,7 @@ Alternatively, access it after creation via `app.getAdapter()`:
 ```ts
 const app = await Application.create({ adapter: new ExpressAdapter(), modules: [...] });
 import type { ExpressAdapter } from "@decorify/express";
-const expressApp = app.getAdapter<ExpressAdapter>().native;
+const expressApp = (app.getAdapter() as ExpressAdapter).native;
 ```
 
 ## What it does
@@ -70,9 +70,9 @@ const expressApp = app.getAdapter<ExpressAdapter>().native;
 
 Creates an adapter with a fresh Express application.
 
-| Option      | Type     | Default | Description                                |
-| ----------- | -------- | ------- | ------------------------------------------ |
-| `jsonLimit` | `string` | `"1mb"` | Max request body size for `express.json()` |
+| Option      | Type     | Default   | Description                                |
+| ----------- | -------- | --------- | ------------------------------------------ |
+| `jsonLimit` | `string` | `"100kb"` | Max request body size for `express.json()` |
 
 ### `adapter.native`
 
