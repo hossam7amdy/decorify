@@ -1,22 +1,20 @@
-# CLAUDE.md
-
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
 ## Project Overview
 
-Decorify is a framework-agnostic micro-framework for building HTTP backends using **Stage 3 ES Decorators** (TC39 standard, not legacy `experimentalDecorators`). It is a **pnpm workspace monorepo** with 3 packages:
+Decorify is a framework-agnostic micro-framework for building HTTP backends using **Stage 3 ES Decorators** (TC39 standard, not legacy `experimentalDecorators`). It is a **pnpm workspace monorepo** with 5 packages:
 
 - **`@decorify/di`** (`packages/di/`) — standalone IoC container, zero framework dependencies
 - **`@decorify/core`** (`packages/core/`) — HTTP framework (modules, routing, unified middleware); depends on `@decorify/di`
+- **`@decorify/testing`** (`packages/testing/`) — adapter conformance test suite; depends on `@decorify/core`
 - **`@decorify/express`** (`packages/adapters/express/`) — Express 5 adapter; depends on `@decorify/core`
+- **`@decorify/fastify`** (`packages/adapters/fastify/`) — Fastify 5 adapter; depends on `@decorify/core`
 
 ## Commands
 
 ### Root workspace (runs across all packages)
 
 - **Install:** `pnpm install` (enforced via `only-allow pnpm`)
-- **Build all:** `pnpm build` (builds packages in dependency order: di → core → express)
-- **Test all:** `pnpm test` (vitest projects mode, runs all package test suites)
+- **Build all:** `pnpm build` (builds packages in dependency order: di → core → express, fastify, testing)
+- **Test all:** `pnpm test` (runs all package test suites)
 - **Format check:** `pnpm format` (prettier)
 - **Clean all:** `pnpm clean`
 
@@ -33,7 +31,6 @@ Decorify is a framework-agnostic micro-framework for building HTTP backends usin
 ```
 decorify/
 ├── tsconfig.base.json        ← shared TS compiler options
-├── vitest.config.ts          ← root vitest config (projects mode)
 ├── packages/
 │   ├── di/src/
 │   │   ├── types.ts          ← DI types: Constructor, Token, Provider, ClassProvider, ValueProvider, FactoryProvider, ExistingProvider
@@ -53,9 +50,13 @@ decorify/
 │   │   ├── errors/           ← HttpException subclasses, defaultErrorHandler
 │   │   ├── application.ts    ← Application class (static async create() factory, private constructor)
 │   │   └── index.ts          ← re-exports everything including @decorify/di
+│   ├── testing/src/
+│   │   └── adapter-conformance.ts ← runAdapterConformance() suite
 │   └── adapters/
-│       └── express/src/
-│           └── index.ts      ← ExpressAdapter implements HttpAdapter
+│       ├── express/src/
+│       │   └── index.ts      ← ExpressAdapter implements HttpAdapter
+│       └── fastify/src/
+│           └── index.ts      ← FastifyAdapter implements HttpAdapter
 ```
 
 ### Decorator Metadata System
@@ -84,11 +85,13 @@ Each route composes a middleware chain at boot: **global → module → controll
 
 ### HttpContext (`packages/core/src/http/context.ts`)
 
-`HttpContext<TReq, TRes>` is generic over native request/response types. Contains `req` (HttpRequest), `res` (HttpResponse), `state` (per-request Map), and `raw` (escape hatch to native types). Each adapter exports a typed alias (e.g., `ExpressContext = HttpContext<Request, Response>`).
+`HttpContext<TReq, TRes>` is generic over native request/response types. Contains `req` (HttpRequest), `res` (HttpResponse), and `state` (per-request `Record<string, unknown>` — never shared across requests). `req.native` and `res.native` expose the underlying framework objects. `req.body()` is **memoized** per request — repeated calls return the same object reference. Each adapter exports a typed alias (e.g., `ExpressContext = HttpContext<Request, Response>`, `FastifyContext = HttpContext<FastifyRequest, FastifyReply>`).
 
 ### Adapter Pattern
 
-`HttpAdapter<TNative>` interface lives in `@decorify/core`. Methods: `registerRoute(route)`, `listen(port, host?)`, `close()`, `readonly native`. `ExpressAdapter` in `@decorify/express` wraps Express 5, translating between Express req/res and `HttpContext`. No `useMiddleware` on the adapter — use `adapter.native.use()` for native middleware.
+`HttpAdapter<TNative>` interface lives in `@decorify/core`. Methods: `registerRoute(route)`, `listen(port, host?) => Promise<number>` (returns actual bound port), `close()`, `readonly native`. `ExpressAdapter` in `@decorify/express` wraps Express 5; `FastifyAdapter` in `@decorify/fastify` wraps Fastify 5 — both translate between their native req/res and `HttpContext`. No `useMiddleware` on the adapter — use `adapter.native.use()` (Express) or `adapter.native.register()` (Fastify) for native middleware.
+
+**Fastify-specific:** Fastify locks its routing table at startup. `FastifyAdapter` buffers routes registered before `listen()` and flushes them during startup — adapters calling `registerRoute()` after `listen()` will throw. The `FastifyAdapterOptions` supports `instance` (bring your own Fastify instance) and `bodyLimit` (default `100_000` bytes / 100 kb).
 
 ### Lifecycle
 
@@ -99,6 +102,6 @@ No lifecycle hook interfaces (v1). `container.initialize()` is called during `Ap
 - ESM-only (`"type": "module"`). All internal imports use `.ts` extensions (with `rewriteRelativeImportExtensions: true` in tsconfig).
 - `experimentalDecorators: false` and `emitDecoratorMetadata: false` — this project explicitly uses Stage 3 decorators.
 - Each package has its own `tsconfig.json` extending `../../tsconfig.base.json`, with `composite: true` for project references.
-- Tests use vitest with SWC for decorator transpilation (`decoratorVersion: "2023-11"`). Test files are colocated as `*.test.ts` next to source files.
-- Node >= 22 required.
-- Express 5 is a peer dependency of `@decorify/express` only.
+- Tests use vitest with SWC for decorator transpilation (`decoratorVersion: "2023-11"`). The `testing` package itself uses the Node.js built-in test runner (`node:test`) via `node --experimental-strip-types --test`. Test files in other packages are colocated as `*.test.ts` next to source files.
+- Node >= 22 required (>= 22.18 for `@decorify/testing` which uses `--experimental-strip-types`).
+- Express 5 is a peer dependency of `@decorify/express` only. Fastify 5 is a peer dependency of `@decorify/fastify` only.

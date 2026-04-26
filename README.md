@@ -9,6 +9,8 @@ A framework-agnostic micro-framework for building production-ready HTTP backends
 | [`@decorify/di`](./packages/di)                    | Standalone IoC container with `@Injectable`, `inject()`, and `@Inject` |
 | [`@decorify/core`](./packages/core)                | HTTP framework — routing, middleware, modules, and error handling      |
 | [`@decorify/express`](./packages/adapters/express) | Express 5 adapter for `@decorify/core`                                 |
+| [`@decorify/fastify`](./packages/adapters/fastify) | Fastify 5 adapter for `@decorify/core`                                 |
+| [`@decorify/testing`](./packages/testing)          | Adapter conformance test suite for `@decorify/core`                    |
 
 ## Features
 
@@ -31,6 +33,8 @@ A framework-agnostic micro-framework for building production-ready HTTP backends
 pnpm add @decorify/core
 # Express adapter (requires express as peer dependency)
 pnpm add @decorify/express express
+# Fastify adapter (requires fastify as peer dependency)
+pnpm add @decorify/fastify fastify
 ```
 
 > `@decorify/core` re-exports everything from `@decorify/di`, so you only need one import in most cases.
@@ -249,35 +253,35 @@ Every route handler and middleware receives an `HttpContext` object:
 
 ### `ctx.req` — HttpRequest
 
-| Property / Method | Description                                |
-| ----------------- | ------------------------------------------ |
-| `method`          | HTTP method (lowercase)                    |
-| `path`            | Request path                               |
-| `url`             | Full request URL                           |
-| `params`          | URL path parameters (`{ id: "42" }`)       |
-| `query`           | Query string parameters                    |
-| `headers`         | Request headers                            |
-| `body<T>()`       | Async method — returns parsed request body |
+| Property / Method | Description                                                      |
+| ----------------- | ---------------------------------------------------------------- |
+| `method`          | HTTP method (uppercase)                                          |
+| `path`            | Request path                                                     |
+| `url`             | Full request URL                                                 |
+| `params`          | URL path parameters (`{ id: "42" }`)                             |
+| `query`           | Query string parameters                                          |
+| `headers`         | Request headers                                                  |
+| `native`          | Underlying framework request (escape hatch)                      |
+| `body<T>()`       | Async method — returns parsed request body; memoized per request |
 
 ### `ctx.res` — HttpResponse
 
-| Property / Method      | Description                              |
-| ---------------------- | ---------------------------------------- |
-| `sent`                 | Whether a response has already been sent |
-| `status(code)`         | Set response status code (chainable)     |
-| `header(name, value)`  | Set a response header (chainable)        |
-| `json(data)`           | Send a JSON response                     |
-| `send(data)`           | Send a plain text / Buffer response      |
-| `stream(body)`         | Stream a NodeJS ReadableStream response  |
-| `redirect(url, code?)` | Redirect to a URL                        |
-| `end()`                | End the response with no body            |
+| Property / Method      | Description                                  |
+| ---------------------- | -------------------------------------------- |
+| `sent`                 | Whether a response has already been sent     |
+| `status(code)`         | Set response status code (chainable)         |
+| `header(name, value)`  | Set a response header (chainable)            |
+| `json(data)`           | Send a JSON response                         |
+| `send(data)`           | Send a plain text / Buffer response          |
+| `redirect(url, code?)` | Redirect to a URL                            |
+| `end()`                | End the response with no body                |
+| `native`               | Underlying framework response (escape hatch) |
 
 ### Other
 
-| Property | Description                                              |
-| -------- | -------------------------------------------------------- |
-| `state`  | Per-request `Map<string \| symbol, unknown>`             |
-| `raw`    | Escape hatch — `{ req: TReq, res: TRes }` native objects |
+| Property | Description                                                             |
+| -------- | ----------------------------------------------------------------------- |
+| `state`  | Per-request `Record<string, unknown>` — fresh per request, never shared |
 
 ## Custom Adapters
 
@@ -309,8 +313,10 @@ decorify/
 ├── packages/
 │   ├── di/                     # @decorify/di — standalone IoC container
 │   ├── core/                   # @decorify/core — HTTP framework
+│   ├── testing/                # @decorify/testing — adapter conformance suite
 │   └── adapters/
-│       └── express/            # @decorify/express — Express 5 adapter
+│       ├── express/            # @decorify/express — Express 5 adapter
+│       └── fastify/            # @decorify/fastify — Fastify 5 adapter
 ├── tsconfig.base.json
 └── vitest.config.ts
 ```
@@ -319,7 +325,7 @@ decorify/
 
 ```bash
 pnpm install          # install all dependencies
-pnpm build            # build all packages (di → core → express)
+pnpm build            # build all packages (di → core → express, fastify, testing)
 pnpm test             # run all test suites
 pnpm format           # check formatting with prettier
 pnpm clean            # remove all dist/ directories

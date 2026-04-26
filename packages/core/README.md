@@ -86,13 +86,13 @@ Resolve a registered DI token after the application has been created.
 const config = app.resolve(CONFIG_TOKEN);
 ```
 
-### `app.getAdapter<TAdapter>()`
+### `app.getAdapter()`
 
-Returns the underlying `HttpAdapter` instance with the given type.
+Returns the underlying `HttpAdapter` instance. Cast to the concrete type if you need adapter-specific properties.
 
 ```ts
 import type { ExpressAdapter } from "@decorify/express";
-const expressApp = app.getAdapter<ExpressAdapter>().native;
+const expressApp = (app.getAdapter() as ExpressAdapter).native;
 ```
 
 ### `app.getRoutes()`
