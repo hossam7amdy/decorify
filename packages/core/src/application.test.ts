@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { Container, InjectionToken } from "@decorify/di";
 import { Application } from "./application.ts";
 import type { HttpAdapter, RouteDefinition } from "./http/adapter.ts";
-import type { HttpContext, HttpResponse } from "./http/context.ts";
+import type { HttpContext, HttpRequest, HttpResponse } from "./http/context.ts";
 import type { ModuleDefinition } from "./module.ts";
 import type { Middleware } from "./middleware.ts";
 import { Controller } from "./decorators/controller.ts";
@@ -10,46 +10,51 @@ import { Get, Post, Delete } from "./decorators/route.ts";
 import { UseMiddleware } from "./decorators/middleware.ts";
 import { HttpException } from "./errors/http-exception.ts";
 
-// --- Mock HttpAdapter ---
-function createMockAdapter(): HttpAdapter & {
-  listenCalls: Array<{ port: number; host?: string }>;
-  closeCalled: boolean;
-  routes: RouteDefinition[];
-} {
-  const adapter = {
-    routes: [] as RouteDefinition[],
-    listenCalls: [] as Array<{ port: number; host?: string }>,
-    closeCalled: false,
-    native: {},
-    registerRoute(route: RouteDefinition): void {
-      adapter.routes.push({
-        method: route.method,
-        path: route.path,
-        handler: route.handler,
-      });
-    },
-    async listen(port: number, host?: string): Promise<number> {
-      adapter.listenCalls.push({ port, host });
-      return port;
-    },
-    async close(): Promise<void> {
-      adapter.closeCalled = true;
-    },
-  };
-  return adapter;
+class MockHttpAdapter implements HttpAdapter<null> {
+  native = null;
+  closeCalled = false;
+  routes: RouteDefinition[] = [];
+  listenCalls: Array<{ port: number; host?: string }> = [];
+  registerRoute(route: RouteDefinition): void {
+    this.routes.push({
+      method: route.method,
+      path: route.path,
+      handler: route.handler,
+    });
+  }
+  async listen(port: number, host?: string): Promise<number> {
+    this.listenCalls.push({ port, host });
+    return port;
+  }
+  async close(): Promise<void> {
+    this.closeCalled = true;
+  }
 }
 
-// --- Mock HttpContext ---
-function createMockCtx(
+type MockNativeRequest = null;
+type MockNativeResponse = {
+  _statusCode: number;
+  _jsonData: unknown;
+};
+function createHttpMockCtx(
   overrides: Partial<{ method: string; path: string; sent: boolean }> = {},
-): HttpContext & {
-  res: HttpResponse & { _statusCode: number; _jsonData: unknown };
-} {
+): HttpContext<MockNativeRequest, MockNativeResponse> {
   let statusCode = 200;
   let sent = overrides.sent ?? false;
   let jsonData: unknown;
 
-  const res: any = {
+  const req: HttpRequest<MockNativeRequest> = {
+    method: overrides.method ?? "GET",
+    path: overrides.path ?? "/",
+    url: overrides.path ?? "/",
+    headers: {},
+    query: {},
+    params: {},
+    body: () => Promise.resolve<any>({}),
+    native: null,
+  };
+
+  const res: HttpResponse<MockNativeResponse> = {
     get sent() {
       return sent;
     },
@@ -65,50 +70,35 @@ function createMockCtx(
       jsonData = data;
       sent = true;
     },
-    async stream() {
-      sent = true;
-    },
     async redirect() {
       sent = true;
     },
     async end() {
       sent = true;
     },
-    get _statusCode() {
-      return statusCode;
-    },
-    get _jsonData() {
-      return jsonData;
+    native: {
+      get _statusCode() {
+        return statusCode;
+      },
+      get _jsonData() {
+        return jsonData;
+      },
     },
   };
 
-  return {
-    req: {
-      method: overrides.method ?? "GET",
-      path: overrides.path ?? "/",
-      url: overrides.path ?? "/",
-      headers: {},
-      query: {},
-      params: {},
-      body: () => Promise.resolve({}),
-    },
-    res,
-    state: new Map(),
-    raw: { req: {}, res: {} },
-  } as any;
+  return { req, res, state: {} };
 }
 
-// --- Test controllers and modules ---
-@Controller("/items")
-class ItemController {
+@Controller("/tests")
+class TestController {
   @Get("/")
   getAll() {
-    return [{ id: 1, name: "item1" }];
+    return [{ id: 1, name: "test1" }];
   }
 
   @Post("/")
   create() {
-    return { id: 2, name: "item2" };
+    return { id: 2, name: "test2" };
   }
 
   @Delete("/:id")
@@ -118,17 +108,17 @@ class ItemController {
 }
 
 describe("Application", () => {
-  let adapter: ReturnType<typeof createMockAdapter>;
+  let adapter: MockHttpAdapter;
 
   beforeEach(() => {
-    adapter = createMockAdapter();
+    adapter = new MockHttpAdapter();
   });
 
   describe("Application.create()", () => {
     it("creates an application and registers routes on the adapter", async () => {
       const mod: ModuleDefinition = {
-        name: "ItemModule",
-        controllers: [ItemController],
+        name: "TestModule",
+        controllers: [TestController],
       };
 
       const app = await Application.create({
@@ -193,8 +183,8 @@ describe("Application", () => {
   describe("joinPath (tested via route registration)", () => {
     it("produces /prefix/path for controller with prefix", async () => {
       const mod: ModuleDefinition = {
-        name: "ItemModule",
-        controllers: [ItemController],
+        name: "TestModule",
+        controllers: [TestController],
       };
 
       const app = await Application.create({
@@ -203,8 +193,8 @@ describe("Application", () => {
       });
 
       const paths = app.getRoutes().map((r) => r.path);
-      expect(paths).toContain("/items");
-      expect(paths).toContain("/items/:id");
+      expect(paths).toContain("/tests");
+      expect(paths).toContain("/tests/:id");
     });
 
     it("produces /path for controller without prefix", async () => {
@@ -298,10 +288,10 @@ describe("Application", () => {
       const route = adapter.routes.find((r) => r.path === "/test/data");
       expect(route).toBeDefined();
 
-      const ctx = createMockCtx({ method: "GET", path: "/test/data" });
+      const ctx = createHttpMockCtx({ method: "GET", path: "/test/data" });
       await route!.handler(ctx);
 
-      expect(ctx.res._jsonData).toEqual({ foo: "bar" });
+      expect(ctx.res.native._jsonData).toEqual({ foo: "bar" });
     });
 
     it("undefined return results in 204 and end()", async () => {
@@ -321,10 +311,10 @@ describe("Application", () => {
       await Application.create({ adapter, modules: [mod] });
 
       const route = adapter.routes.find((r) => r.path === "/test/thing");
-      const ctx = createMockCtx({ method: "DELETE", path: "/test/thing" });
+      const ctx = createHttpMockCtx({ method: "DELETE", path: "/test/thing" });
       await route!.handler(ctx);
 
-      expect(ctx.res._statusCode).toBe(204);
+      expect(ctx.res.native._statusCode).toBe(204);
     });
 
     it("skips response when ctx.res.sent is true", async () => {
@@ -345,7 +335,7 @@ describe("Application", () => {
       await Application.create({ adapter, modules: [mod] });
 
       const route = adapter.routes.find((r) => r.path === "/test/sent");
-      const ctx = createMockCtx({ method: "GET", path: "/test/sent" });
+      const ctx = createHttpMockCtx({ method: "GET", path: "/test/sent" });
       await route!.handler(ctx);
 
       // After send, sent is true, so json should not be called with "ignored"
@@ -372,11 +362,11 @@ describe("Application", () => {
       await Application.create({ adapter, modules: [mod] });
 
       const route = adapter.routes.find((r) => r.path === "/err/not-found");
-      const ctx = createMockCtx({ method: "GET", path: "/err/not-found" });
+      const ctx = createHttpMockCtx({ method: "GET", path: "/err/not-found" });
       await route!.handler(ctx);
 
-      expect(ctx.res._statusCode).toBe(404);
-      expect(ctx.res._jsonData).toMatchObject({
+      expect(ctx.res.native._statusCode).toBe(404);
+      expect(ctx.res.native._jsonData).toMatchObject({
         status: 404,
         message: "Not found",
       });
@@ -399,11 +389,11 @@ describe("Application", () => {
       await Application.create({ adapter, modules: [mod] });
 
       const route = adapter.routes.find((r) => r.path === "/err/generic");
-      const ctx = createMockCtx({ method: "GET", path: "/err/generic" });
+      const ctx = createHttpMockCtx({ method: "GET", path: "/err/generic" });
       await route!.handler(ctx);
 
-      expect(ctx.res._statusCode).toBe(500);
-      expect(ctx.res._jsonData).toMatchObject({ error: "oops" });
+      expect(ctx.res.native._statusCode).toBe(500);
+      expect(ctx.res.native._jsonData).toMatchObject({ error: "oops" });
     });
 
     it("custom error handler is called on throw", async () => {
@@ -429,7 +419,10 @@ describe("Application", () => {
       });
 
       const route = adapter.routes.find((r) => r.path === "/custom-err/boom");
-      const ctx = createMockCtx({ method: "GET", path: "/custom-err/boom" });
+      const ctx = createHttpMockCtx({
+        method: "GET",
+        path: "/custom-err/boom",
+      });
       await route!.handler(ctx);
 
       expect(customHandler).toHaveBeenCalledWith(expect.any(Error), ctx);
@@ -482,7 +475,7 @@ describe("Application", () => {
       });
 
       const route = adapter.routes.find((r) => r.path === "/mw-test/ordered");
-      const ctx = createMockCtx({
+      const ctx = createHttpMockCtx({
         method: "GET",
         path: "/mw-test/ordered",
       });
