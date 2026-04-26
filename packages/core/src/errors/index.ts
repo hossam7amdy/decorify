@@ -1,3 +1,4 @@
+export { HttpStatus } from "./status-code.ts";
 export {
   HttpException,
   BadRequestException,

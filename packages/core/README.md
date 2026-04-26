@@ -292,35 +292,35 @@ Every route handler and middleware receives an `HttpContext`:
 
 ### `ctx.req` — HttpRequest
 
-| Property / Method | Description                          |
-| ----------------- | ------------------------------------ |
-| `method`          | HTTP method (lowercase)              |
-| `path`            | Request path                         |
-| `url`             | Full request URL                     |
-| `params`          | URL path parameters (`{ id: "42" }`) |
-| `query`           | Query string parameters              |
-| `headers`         | Request headers                      |
-| `body<T>()`       | Async — returns parsed request body  |
+| Property / Method | Description                                               |
+| ----------------- | --------------------------------------------------------- |
+| `native`          | Underlying framework request object (escape hatch)        |
+| `method`          | HTTP method, uppercase: `"GET"`, `"POST"`, etc.           |
+| `path`            | Request path, without query string                        |
+| `url`             | Full request URL including query string                   |
+| `params`          | URL path parameters (`{ id: "42" }`); `{}` when none      |
+| `query`           | Query string parameters; repeated keys yield arrays       |
+| `headers`         | Request headers, accessible via lowercase key             |
+| `body<T>()`       | Async — returns parsed request body; memoized per request |
 
 ### `ctx.res` — HttpResponse
 
-| Property / Method      | Description                              |
-| ---------------------- | ---------------------------------------- |
-| `sent`                 | Whether a response has already been sent |
-| `status(code)`         | Set response status code (chainable)     |
-| `header(name, value)`  | Set a response header (chainable)        |
-| `json(data)`           | Send a JSON response                     |
-| `send(data)`           | Send a plain text / Buffer response      |
-| `stream(body)`         | Stream a NodeJS ReadableStream response  |
-| `redirect(url, code?)` | Redirect to a URL                        |
-| `end()`                | End the response with no body            |
+| Property / Method      | Description                                           |
+| ---------------------- | ----------------------------------------------------- |
+| `native`               | Underlying framework response object (escape hatch)   |
+| `sent`                 | `false` before response; `true` after any send method |
+| `status(code)`         | Set response status code (chainable)                  |
+| `header(name, value)`  | Set a response header (chainable)                     |
+| `json(data)`           | Send a JSON response                                  |
+| `send(data)`           | Send a plain text / Buffer response                   |
+| `redirect(url, code?)` | Redirect to a URL                                     |
+| `end()`                | End the response with no body                         |
 
 ### Other
 
-| Property | Description                                              |
-| -------- | -------------------------------------------------------- |
-| `state`  | Per-request `Map<string \| symbol, unknown>`             |
-| `raw`    | Escape hatch — `{ req: TReq, res: TRes }` native objects |
+| Property | Description                                               |
+| -------- | --------------------------------------------------------- |
+| `state`  | Per-request `Record<string, unknown>` — fresh per request |
 
 ## Custom Adapters
 
