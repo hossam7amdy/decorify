@@ -42,13 +42,8 @@ export class FastifyAdapter implements HttpAdapter<FastifyInstance> {
         url: route.path,
         handler: async (request, reply) => {
           const ctx = buildContext(request, reply);
-          try {
-            await Promise.resolve(route.handler(ctx));
-          } catch (err) {
-            // Fastify handles errors thrown from async handlers and passes them
-            // to its internal error handler to yield a 500 response.
-            throw err;
-          }
+          await route.handler(ctx);
+          return reply;
         },
       });
     }
