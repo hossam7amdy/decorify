@@ -25,8 +25,8 @@
     "dev": "tsc --build tsconfig.build.json --watch --pretty",
     "clean": "node --eval \"fs.rmSync('dist', { recursive: true, force: true }); fs.rmSync('tsconfig.build.tsbuildinfo', { force: true })\"",
     "prepublishOnly": "pnpm clean && pnpm build",
-    "test": "node --test test/**/*.test.ts",
-    "test:watch": "node --test --watch test/**/*.test.ts"
+    "test": "node --experimental-strip-types --test test/**/*.test.ts",
+    "test:watch": "node --experimental-strip-types --test --watch test/**/*.test.ts"
   },
   "keywords": [
     "testing",
