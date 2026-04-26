@@ -6,12 +6,14 @@
 
 ```ts
 // packages/adapters/my-framework/test/adapter-conformance.test.ts
+import { describe, it, expect } from "vitest"; // or jest, @jest/globals, etc.
 import { MyAdapter } from "../src/adapter.ts";
 import { runAdapterConformance } from "@decorify/core/testing";
 
 runAdapterConformance({
   name: MyAdapter.name,
   makeAdapter: () => new MyAdapter(),
+  runner: { describe, it, expect },
 });
 ```
 
@@ -19,6 +21,13 @@ Run with vitest:
 
 ```bash
 pnpm vitest run
+```
+
+Run with Jest:
+
+```ts
+import { describe, it, expect } from "@jest/globals";
+runAdapterConformance({ ..., runner: { describe, it, expect } });
 ```
 
 ## Options
@@ -33,6 +42,12 @@ interface AdapterConformanceOptions<TAdapter> {
    * May be async — useful for adapters that need async initialization.
    */
   makeAdapter: () => TAdapter | Promise<TAdapter>;
+
+  /**
+   * Test runner functions. Pass `{ describe, it, expect }` from your test framework.
+   * Both vitest and Jest satisfy the ConformanceTestRunner interface.
+   */
+  runner: ConformanceTestRunner;
 
   /**
    * Host to bind to and use in request URLs.

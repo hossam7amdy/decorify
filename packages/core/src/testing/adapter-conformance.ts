@@ -1,6 +1,41 @@
-import { describe, it, expect } from "vitest";
 import type { HttpAdapter, RouteDefinition } from "../http/adapter.ts";
 import type { HttpContext } from "../http/context.ts";
+
+/** Subset of vitest/jest `expect(actual)` return value used by the conformance suite. */
+export interface ConformanceAssertions {
+  toBe(expected: unknown): void;
+  toEqual(expected: unknown): void;
+  toContain(expected: unknown): void;
+  toMatch(pattern: RegExp | string): void;
+  toBeGreaterThanOrEqual(n: number): void;
+  toBeLessThan(n: number): void;
+  toBeDefined(): void;
+  toBeUndefined(): void;
+  not: { toBeNull(): void };
+  rejects: { toThrow(): Promise<void> };
+}
+
+/**
+ * Minimal test-runner API consumed by the conformance suite.
+ * Both vitest and Jest satisfy this interface structurally.
+ *
+ * @example Vitest
+ * ```ts
+ * import { describe, it, expect } from "vitest";
+ * runAdapterConformance({ ..., runner: { describe, it, expect } });
+ * ```
+ *
+ * @example Jest
+ * ```ts
+ * import { describe, it, expect } from "@jest/globals";
+ * runAdapterConformance({ ..., runner: { describe, it, expect } });
+ * ```
+ */
+export interface ConformanceTestRunner {
+  describe(label: string, fn: () => void): void;
+  it(label: string, fn: () => Promise<void> | void): void;
+  expect(actual: unknown): ConformanceAssertions;
+}
 
 export interface AdapterConformanceOptions<TAdapter> {
   name: string;
@@ -14,6 +49,11 @@ export interface AdapterConformanceOptions<TAdapter> {
    * Used by the oversized-body test — payload is set to `2 × bodyLimit`.
    */
   bodyLimit?: number;
+  /**
+   * Test runner functions. Pass `{ describe, it, expect }` from your test framework.
+   * Both vitest and Jest satisfy this interface.
+   */
+  runner: ConformanceTestRunner;
 }
 
 export function runAdapterConformance<TAdapter extends HttpAdapter>(
@@ -21,6 +61,7 @@ export function runAdapterConformance<TAdapter extends HttpAdapter>(
 ) {
   const host = opts.host ?? "127.0.0.1";
   const bodyLimit = opts.bodyLimit ?? 100_000;
+  const { describe, it, expect } = opts.runner;
 
   /**
    * Registers routes on a fresh adapter, listens on an ephemeral port,
