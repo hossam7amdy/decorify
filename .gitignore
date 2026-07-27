@@ -1,0 +1,10 @@
+# compiled output
+dist
+node_modules
+*.tsbuildinfo
+
+# coverage
+lcov.info
+
+# local agent tooling
+.claude/worktrees

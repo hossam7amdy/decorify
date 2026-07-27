@@ -1,0 +1,7 @@
+packages:
+  - "core"
+  - "adapters/*"
+
+allowBuilds:
+  esbuild: false
+  lefthook: true

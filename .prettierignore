@@ -1,0 +1,4 @@
+pnpm-lock.yaml
+
+# SDD scratch (git-ignored; not source)
+.superpowers/

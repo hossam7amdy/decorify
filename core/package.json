@@ -1,0 +1,48 @@
+{
+  "name": "@decorify/core",
+  "version": "0.0.0",
+  "description": "",
+  "type": "module",
+  "license": "MIT",
+  "author": "Hossam Hamdy <hossamhamdy117@gmail.com> (https://github.com/hossam7amdy)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hossam7amdy/decorify.git",
+    "directory": "core"
+  },
+  "homepage": "https://github.com/hossam7amdy/decorify#readme",
+  "bugs": {
+    "url": "https://github.com/hossam7amdy/decorify/issues"
+  },
+  "engines": {
+    "node": ">=22.6.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json",
+    "./metadata-polyfill": "./metadata-polyfill.js"
+  },
+  "scripts": {
+    "prebuild": "node -e \"require('fs').rmSync('dist', { recursive: true, force: true })\"",
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "node --import=tsx --test \"test/**/*.test.ts\"",
+    "test:cov": "node --import=tsx --test --experimental-test-coverage --test-coverage-lines=100 --test-coverage-functions=100 --test-coverage-branches=100 --test-coverage-exclude=\"test/**\" --test-reporter=spec --test-reporter-destination=stdout --test-reporter=lcov --test-reporter-destination=lcov.info \"test/**/*.test.ts\""
+  },
+  "keywords": [],
+  "dependencies": {
+    "@standard-schema/spec": "^1.1.0"
+  },
+  "peerDependencies": {
+    "injectus": "^0.3.0"
+  },
+  "devDependencies": {
+    "injectus": "^0.3.0"
+  }
+}

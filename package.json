@@ -1,0 +1,43 @@
+{
+  "name": "decorify",
+  "version": "0.0.0",
+  "description": "",
+  "type": "module",
+  "license": "MIT",
+  "author": "Hossam Hamdy <hossamhamdy117@gmail.com> (https://github.com/hossam7amdy)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hossam7amdy/decorify.git"
+  },
+  "homepage": "https://github.com/hossam7amdy/decorify#readme",
+  "bugs": {
+    "url": "https://github.com/hossam7amdy/decorify/issues"
+  },
+  "devEngines": {
+    "runtime": {
+      "name": "node",
+      "version": ">=24.16.0"
+    },
+    "packageManager": {
+      "name": "pnpm",
+      "version": "11.5.1",
+      "onFail": "download"
+    }
+  },
+  "scripts": {
+    "check": "biome check . && prettier --check \"**/*.{md,yaml}\"",
+    "check:fix": "biome check . --write && prettier --write \"**/*.{md,yaml}\"",
+    "test": "pnpm -r run test",
+    "test:cov": "pnpm -r run test:cov",
+    "build": "pnpm -r run build",
+    "typecheck": "pnpm -r run typecheck"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.3",
+    "@types/node": "^26.1.1",
+    "lefthook": "^2.1.10",
+    "prettier": "^3.9.4",
+    "tsx": "^4.23.0",
+    "typescript": "^7.0.2"
+  }
+}
