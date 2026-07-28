@@ -1,0 +1,38 @@
+{
+  "name": "@decorify/express",
+  "version": "0.0.0",
+  "description": "",
+  "type": "module",
+  "license": "MIT",
+  "author": "Hossam Hamdy <hossamhamdy117@gmail.com> (https://github.com/hossam7amdy)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hossam7amdy/decorify.git",
+    "directory": "adapters/express"
+  },
+  "homepage": "https://github.com/hossam7amdy/decorify#readme",
+  "bugs": {
+    "url": "https://github.com/hossam7amdy/decorify/issues"
+  },
+  "engines": {
+    "node": ">=22.6.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "scripts": {},
+  "keywords": [],
+  "peerDependencies": {
+    "@decorify/core": "workspace:^"
+  },
+  "devDependencies": {
+    "@decorify/core": "workspace:*"
+  }
+}
