@@ -39,8 +39,12 @@
           }
         }
       },
+      "performance": {
+        "noBarrelFile": "error"
+      },
       "suspicious": {
-        "noConsole": "error"
+        "noConsole": "error",
+        "noImportCycles": "error"
       }
     }
   },
@@ -57,6 +61,18 @@
       "trailingCommas": "none"
     }
   },
+  "overrides": [
+    {
+      "includes": ["**/src/index.ts"],
+      "linter": {
+        "rules": {
+          "performance": {
+            "noBarrelFile": "off"
+          }
+        }
+      }
+    }
+  ],
   "assist": {
     "enabled": true,
     "actions": {

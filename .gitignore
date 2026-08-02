@@ -8,3 +8,6 @@ lcov.info
 
 # local agent tooling
 .claude/worktrees
+
+# SDD scratch (not source; source is the single source of truth)
+.superpowers/

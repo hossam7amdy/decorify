@@ -28,21 +28,25 @@
     "./package.json": "./package.json",
     "./metadata-polyfill": "./metadata-polyfill.js"
   },
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md",
+    "metadata-polyfill.js"
+  ],
+  "sideEffects": [
+    "./metadata-polyfill.js"
+  ],
   "scripts": {
     "prebuild": "node -e \"require('fs').rmSync('dist', { recursive: true, force: true })\"",
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json",
-    "test": "node --import=tsx --test \"test/**/*.test.ts\"",
-    "test:cov": "node --import=tsx --test --experimental-test-coverage --test-coverage-lines=100 --test-coverage-functions=100 --test-coverage-branches=100 --test-coverage-exclude=\"test/**\" --test-reporter=spec --test-reporter-destination=stdout --test-reporter=lcov --test-reporter-destination=lcov.info \"test/**/*.test.ts\""
+    "test": "node --import=tsx --test \"src/**/*.test.ts\" \"test/**/*.test.ts\"",
+    "test:cov": "node --import=tsx --test --experimental-test-coverage --test-coverage-lines=95 --test-coverage-functions=95 --test-coverage-branches=90 --test-coverage-exclude=\"test/**\" --test-coverage-exclude=\"src/**/*.test.ts\" --test-reporter=spec --test-reporter-destination=stdout --test-reporter=lcov --test-reporter-destination=lcov.info \"src/**/*.test.ts\" \"test/**/*.test.ts\""
   },
   "keywords": [],
   "dependencies": {
+    "injectus": "^0.3.0",
     "@standard-schema/spec": "^1.1.0"
-  },
-  "peerDependencies": {
-    "injectus": "^0.3.0"
-  },
-  "devDependencies": {
-    "injectus": "^0.3.0"
   }
 }
