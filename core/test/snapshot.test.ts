@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { DecorifyApp, Inject, InjectionToken, Module } from "../src/index.ts";
+import {
+  DecorifyApp,
+  type DynamicModule,
+  Inject,
+  InjectionToken,
+  Module,
+} from "../src/index.ts";
 
 const CONFIG = new InjectionToken<string>("CONFIG");
 
@@ -81,6 +87,33 @@ describe("snapshot", { timeout: 1000 }, () => {
       graph.modules.find((module) => module.name === "RootModule")?.controllers,
       ["AlphaController", "ZuluController"],
     );
+
+    await app.dispose();
+  });
+
+  it("names a promised dynamic root by the class it configures", async () => {
+    const URL = new InjectionToken<string>("URL");
+
+    @Module({})
+    class ConfiguredModule {
+      static async forRoot(url: string): Promise<DynamicModule> {
+        await Promise.resolve();
+        return {
+          module: ConfiguredModule,
+          providers: [{ provide: URL, useValue: url }],
+        };
+      }
+    }
+
+    const app = await DecorifyApp.create(ConfiguredModule.forRoot("db-url"));
+    const graph = app.snapshot();
+
+    assert.equal(graph.root, "ConfiguredModule");
+    assert.deepEqual(
+      graph.modules.map((module) => module.name),
+      ["ConfiguredModule"],
+    );
+    assert.equal(graph.modules[0]?.dynamic, true);
 
     await app.dispose();
   });
